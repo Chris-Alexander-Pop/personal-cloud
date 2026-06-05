@@ -64,7 +64,7 @@ steps:
           -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:latest" \
           -f "app-src/${BUILD_DOCKERFILE}" "app-src/${BUILD_CONTEXT}"
     when:
-      - evaluate: '${DO_BUILD} == "true"'
+      - evaluate: 'DO_BUILD == true'
 
   - name: provision
     image: alpine:3.20
