@@ -101,12 +101,13 @@ steps:
     image: docker:26-cli
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/personal-cloud:/opt/personal-cloud
     commands:
       - |
         set -eu
         export IMAGE_TAG="${IMAGE_TAG}"
         COMPOSE_FILE="/opt/personal-cloud/apps/${APP_NAME}/compose.yaml"
-        docker login ghcr.io -u your-github-username -p "$${GHCR_TOKEN}"
+        echo "$$GHCR_TOKEN" | docker login ghcr.io -u your-github-username --password-stdin
         docker compose -f "$COMPOSE_FILE" --env-file "$COMPOSE_ENV_FILE" pull
         docker compose -f "$COMPOSE_FILE" --env-file "$COMPOSE_ENV_FILE" up -d
     environment:
