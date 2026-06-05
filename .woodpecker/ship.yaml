@@ -4,6 +4,15 @@
 when:
   - event: manual
 
+# Postgres for app test steps (hostname: postgres). Matches your-app server-ci / docker-compose.
+services:
+  - name: postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+
 steps:
   - name: validate-vars
     image: alpine:3.20
@@ -38,6 +47,9 @@ steps:
 
   - name: test
     image: rust:1.88-bookworm
+    environment:
+      DATABASE_URL: postgres://app:app@postgres:5432/app
+      JWT_SECRET: ci-test-jwt-secret
     commands:
       - |
         set -eu
@@ -45,6 +57,16 @@ steps:
           echo "no TEST_SCRIPT, skipping"
           exit 0
         fi
+        apt-get update -qq
+        apt-get install -y -qq postgresql-client
+        echo "waiting for postgres..."
+        for i in $(seq 1 30); do
+          if pg_isready -h postgres -U app -q; then
+            break
+          fi
+          sleep 1
+        done
+        pg_isready -h postgres -U app -q
         cd app-src
         eval "${TEST_SCRIPT}"
     when:
