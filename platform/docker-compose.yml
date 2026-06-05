@@ -1,0 +1,70 @@
+# Platform stack: Woodpecker CI + Caddy edge proxy.
+# Run from /opt/personal-cloud/platform after copying woodpecker/.env
+
+services:
+  woodpecker-server:
+    image: woodpeckerci/woodpecker-server:v3
+    container_name: woodpecker-server
+    restart: unless-stopped
+    env_file:
+      - woodpecker/.env
+    environment:
+      - WOODPECKER_SERVER_ADDR=:8000
+      - WOODPECKER_GRPC_ADDR=:9000
+    ports:
+      - "8000:8000"
+    volumes:
+      - woodpecker-server-data:/var/lib/woodpecker
+    networks:
+      - internal
+
+  woodpecker-agent:
+    image: woodpeckerci/woodpecker-agent:v3
+    container_name: woodpecker-agent
+    restart: unless-stopped
+    depends_on:
+      woodpecker-server:
+        condition: service_started
+    env_file:
+      - woodpecker/.env
+    environment:
+      - WOODPECKER_SERVER=woodpecker-server:9000
+      - WOODPECKER_MAX_WORKFLOWS=2
+      - WOODPECKER_HEALTHCHECK=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - woodpecker-agent-config:/etc/woodpecker
+      # Stable deploy secrets and env (created by bootstrap)
+      - /opt/personal-cloud:/opt/personal-cloud
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      CADDY_ACME_EMAIL: ${CADDY_ACME_EMAIL:-you@example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/sites:/etc/caddy/sites
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+      - internal
+
+volumes:
+  woodpecker-server-data:
+  woodpecker-agent-config:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge:
+    name: personal-cloud_edge
+  internal:
+    name: personal-cloud_internal

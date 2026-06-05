@@ -1,0 +1,17 @@
+when:
+  - event: push
+    branch: main
+
+steps:
+  - name: compose-config-platform
+    image: docker:cli
+    commands:
+      - docker compose -f platform/docker-compose.yml config --quiet
+
+  - name: compose-config-your-app
+    image: docker:cli
+    commands:
+      - |
+        export IMAGE_TAG=ci-validate
+        export POSTGRES_PASSWORD=ci
+        docker compose -f apps/example-app/compose.yaml --env-file apps/example-app/.env.example config --quiet

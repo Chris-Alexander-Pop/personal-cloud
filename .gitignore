@@ -1,0 +1,9 @@
+.env
+platform/woodpecker/.env
+apps/*/.env
+**/caddy_data/
+bin/
+# Generated on VM by ship pipeline (reference copies may stay in git)
+apps/*/compose.yaml
+platform/caddy/sites/*.caddy
+!platform/caddy/sites/.gitkeep

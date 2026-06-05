@@ -1,0 +1,13 @@
+woodpecker:
+  url: http://100.x.x.x:8000
+  token: YOUR_WOODPECKER_PERSONAL_TOKEN
+personal_cloud:
+  owner: your-github-username
+  repo: personal-cloud
+github:
+  owner: your-github-username
+defaults:
+  tailnet_base: example.ts.net
+  registry: ghcr.io
+ghcr:
+  token: YOUR_GITHUB_PAT_WITH_PACKAGES

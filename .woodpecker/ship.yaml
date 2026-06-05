@@ -1,0 +1,111 @@
+# Central ship pipeline — triggered by `pc ship` (manual) with pipeline variables.
+# Secrets: ghcr_token, github_clone_token (optional, for private repos)
+
+when:
+  - event: manual
+
+steps:
+  - name: validate-vars
+    image: alpine:3.20
+    commands:
+      - |
+        set -eu
+        for v in APP_NAME SOURCE_REPO SOURCE_REF IMAGE IMAGE_REPO IMAGE_TAG DO_BUILD EXPOSURE ROUTE_HOST SERVICE_CONTAINER SERVICE_PORT COMPOSE_TEMPLATE COMPOSE_ENV_FILE BUILD_CONTEXT BUILD_DOCKERFILE; do
+          eval "val=\$$v"
+          if [ -z "$val" ]; then
+            echo "missing required variable: $v" >&2
+            exit 1
+          fi
+        done
+        echo "ship ${APP_NAME} ${IMAGE}:${IMAGE_TAG} exposure=${EXPOSURE} host=${ROUTE_HOST}"
+
+  - name: clone-app
+    image: alpine/git:2.45.2
+    environment:
+      GITHUB_CLONE_TOKEN:
+        from_secret: github_clone_token
+    commands:
+      - |
+        set -eu
+        rm -rf app-src
+        if [ -n "${GITHUB_CLONE_TOKEN:-}" ]; then
+          git clone "https://x-access-token:${GITHUB_CLONE_TOKEN}@github.com/${SOURCE_REPO}.git" app-src
+        else
+          git clone "https://github.com/${SOURCE_REPO}.git" app-src
+        fi
+        cd app-src
+        git checkout "${SOURCE_REF}"
+
+  - name: test
+    image: rust:1.88-bookworm
+    commands:
+      - |
+        set -eu
+        if [ -z "${TEST_SCRIPT:-}" ]; then
+          echo "no TEST_SCRIPT, skipping"
+          exit 0
+        fi
+        cd app-src
+        eval "${TEST_SCRIPT}"
+    when:
+      - evaluate: 'len(TEST_SCRIPT) > 0'
+
+  - name: build-and-push
+    image: docker:26-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      GHCR_TOKEN:
+        from_secret: ghcr_token
+    commands:
+      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u your-github-username --password-stdin
+      - |
+        docker buildx build --push \
+          -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:latest" \
+          -f "app-src/${BUILD_DOCKERFILE}" "app-src/${BUILD_CONTEXT}"
+    when:
+      - evaluate: '${DO_BUILD} == "true"'
+
+  - name: provision
+    image: alpine:3.20
+    volumes:
+      - /opt/personal-cloud:/opt/personal-cloud
+    commands:
+      - apk add --no-cache gettext bash
+      - chmod +x scripts/render-app.sh
+      - PC_ROOT=/opt/personal-cloud TEMPLATE_ROOT=${CI_WORKSPACE}/templates ./scripts/render-app.sh
+
+  - name: deploy
+    image: docker:26-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - |
+        set -eu
+        export IMAGE_TAG="${IMAGE_TAG}"
+        COMPOSE_FILE="/opt/personal-cloud/apps/${APP_NAME}/compose.yaml"
+        docker login ghcr.io -u your-github-username -p "$${GHCR_TOKEN}"
+        docker compose -f "$COMPOSE_FILE" --env-file "$COMPOSE_ENV_FILE" pull
+        docker compose -f "$COMPOSE_FILE" --env-file "$COMPOSE_ENV_FILE" up -d
+    environment:
+      GHCR_TOKEN:
+        from_secret: ghcr_token
+
+  - name: reload-caddy
+    image: docker:26-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+  - name: health
+    image: docker:26-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - |
+        set -eu
+        sleep 5
+        docker run --rm --network personal-cloud_edge curlimages/curl:8.7.1 \
+          -fsS "http://${SERVICE_CONTAINER}:${SERVICE_PORT}${SERVICE_HEALTH_PATH:-/health}" \
+          || echo "health check failed (app may still be starting)"
