@@ -94,8 +94,8 @@ steps:
       - /opt/personal-cloud:/opt/personal-cloud
     commands:
       - apk add --no-cache gettext bash
-      - chmod +x scripts/render-app.sh
-      - PC_ROOT=/opt/personal-cloud TEMPLATE_ROOT=${CI_WORKSPACE}/templates ./scripts/render-app.sh
+      - chmod +x /opt/personal-cloud/scripts/render-app.sh
+      - PC_ROOT=/opt/personal-cloud /opt/personal-cloud/scripts/render-app.sh
 
   - name: deploy
     image: docker:26-cli
