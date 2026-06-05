@@ -212,12 +212,24 @@ func cmdShip(args []string) error {
 		return fmt.Errorf("cannot use --public and --private together")
 	}
 
+	fmt.Printf("OK  manifest=%s repo=%s ref=%s tag=%s\n", m.Name, gi.Remote, gi.ShortSHA, resTag(opt, gi))
 	res, err := ship.Run(cfg, repoRoot, m, gi, opt)
 	if err != nil {
 		return err
 	}
+	if opt.Wait {
+		fmt.Printf("shipped %s:%s\n", m.Image, res.ImageTag)
+		return nil
+	}
 	fmt.Printf("Pipeline #%d started (image tag %s)\n%s\n", res.Number, res.ImageTag, res.PipelineURL)
 	return nil
+}
+
+func resTag(opt ship.Options, gi *git.Info) string {
+	if opt.Tag != "" {
+		return opt.Tag
+	}
+	return "dev-" + gi.ShortSHA
 }
 
 func cmdStatus(args []string) error {
@@ -234,13 +246,34 @@ func cmdStatus(args []string) error {
 	if err != nil {
 		return err
 	}
-	pl, err := client.LatestPipelineForRepo(repoID)
+	latest, err := client.LatestPipelineForRepo(repoID)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("personal-cloud latest pipeline #%d: %s\n", pl.Number, pl.State)
+	pl, err := client.GetPipeline(repoID, latest.Number)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("personal-cloud latest pipeline #%d: %s\n", pl.Number, pl.EffectiveStatus())
 	if pl.Error != "" {
 		fmt.Printf("error: %s\n", pl.Error)
+	}
+	for _, pe := range pl.Errors {
+		if pe != nil && pe.Message != "" {
+			fmt.Printf("error: %s\n", pe.Message)
+		}
+	}
+	for _, wf := range pl.Workflows {
+		for _, step := range wf.Children {
+			state := step.State
+			if state == "" {
+				state = "pending"
+			}
+			fmt.Printf("  %s: %s\n", step.Name, state)
+			if step.Error != "" {
+				fmt.Printf("    %s\n", step.Error)
+			}
+		}
 	}
 	fmt.Println(client.PipelineURL(repoID, pl.Number))
 	_ = m

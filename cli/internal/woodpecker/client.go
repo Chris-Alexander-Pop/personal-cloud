@@ -26,11 +26,43 @@ type Repo struct {
 	FullName string `json:"full_name"`
 }
 
+type PipelineError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
 type Pipeline struct {
-	ID     int64  `json:"id"`
-	Number int64  `json:"number"`
-	State  string `json:"state"`
-	Error  string `json:"error"`
+	ID        int64            `json:"id"`
+	Number    int64            `json:"number"`
+	Status    string           `json:"status"`
+	State     string           `json:"state"`
+	Error     string           `json:"error"`
+	Errors    []*PipelineError `json:"errors"`
+	Workflows []*Workflow      `json:"workflows,omitempty"`
+}
+
+type Workflow struct {
+	Name     string `json:"name"`
+	State    string `json:"state"`
+	Error    string `json:"error,omitempty"`
+	Children []*Step `json:"children,omitempty"`
+}
+
+type Step struct {
+	Name  string `json:"name"`
+	State string `json:"state"`
+	Error string `json:"error,omitempty"`
+}
+
+func (pl *Pipeline) EffectiveStatus() string {
+	if pl.Status != "" {
+		return pl.Status
+	}
+	return pl.State
+}
+
+func (pl *Pipeline) effectiveStatus() string {
+	return pl.EffectiveStatus()
 }
 
 type PipelineOptions struct {
@@ -210,23 +242,118 @@ func saveCache(path string, c repoCache) error {
 
 // Wait polls until pipeline reaches terminal state.
 func (c *Client) Wait(repoID, number int64, interval time.Duration) (*Pipeline, error) {
+	return c.WaitWithProgress(repoID, number, interval, nil)
+}
+
+// WaitWithProgress polls the pipeline and prints workflow/step changes to w.
+// Pass nil for w to wait silently (legacy behavior).
+func (c *Client) WaitWithProgress(repoID, number int64, interval time.Duration, w io.Writer) (*Pipeline, error) {
+	seen := make(map[string]string)
+	var lastPipelineStatus string
+
 	for {
 		pl, err := c.GetPipeline(repoID, number)
 		if err != nil {
 			return nil, err
 		}
-		switch strings.ToLower(pl.State) {
+
+		status := strings.ToLower(pl.effectiveStatus())
+		if w != nil && status != "" && status != lastPipelineStatus {
+			fmt.Fprintf(w, "pipeline #%d: %s\n", pl.Number, status)
+			lastPipelineStatus = status
+		}
+
+		if w != nil {
+			printPipelineProgress(w, pl, seen)
+		}
+
+		switch status {
 		case "success":
+			if w != nil {
+				fmt.Fprintf(w, "pipeline #%d succeeded\n", pl.Number)
+			}
 			return pl, nil
 		case "failure", "error", "killed", "declined":
-			msg := pl.Error
-			if msg == "" {
-				msg = pl.State
+			msg := pipelineFailureMessage(pl)
+			if w != nil {
+				fmt.Fprintf(w, "pipeline #%d failed: %s\n", pl.Number, msg)
 			}
 			return pl, fmt.Errorf("pipeline failed: %s", msg)
 		}
 		time.Sleep(interval)
 	}
+}
+
+func printPipelineProgress(w io.Writer, pl *Pipeline, seen map[string]string) {
+	for _, wf := range pl.Workflows {
+		wfLabel := wf.Name
+		if wfLabel == "" {
+			wfLabel = "workflow"
+		}
+		for _, step := range wf.Children {
+			if step.Name == "" {
+				continue
+			}
+			key := wfLabel + "/" + step.Name
+			state := strings.ToLower(step.State)
+			if state == "" {
+				state = "pending"
+			}
+			if seen[key] == state {
+				continue
+			}
+			seen[key] = state
+			fmt.Fprintf(w, "  %s: %s\n", step.Name, state)
+			if step.Error != "" {
+				fmt.Fprintf(w, "    %s\n", step.Error)
+			}
+		}
+		if wf.Error != "" {
+			key := wfLabel + "/__error__"
+			if seen[key] != wf.Error {
+				seen[key] = wf.Error
+				fmt.Fprintf(w, "  %s: %s\n", wfLabel, wf.Error)
+			}
+		}
+	}
+	for _, pe := range pl.Errors {
+		if pe == nil || pe.Message == "" {
+			continue
+		}
+		key := "error:" + pe.Message
+		if seen[key] != pe.Message {
+			seen[key] = pe.Message
+			fmt.Fprintf(w, "  linter: %s\n", pe.Message)
+		}
+	}
+}
+
+func pipelineFailureMessage(pl *Pipeline) string {
+	if pl.Error != "" {
+		return pl.Error
+	}
+	for _, pe := range pl.Errors {
+		if pe != nil && pe.Message != "" {
+			return pe.Message
+		}
+	}
+	for _, wf := range pl.Workflows {
+		if wf.Error != "" {
+			return wf.Error
+		}
+		for _, step := range wf.Children {
+			if step.Error != "" {
+				return step.Name + ": " + step.Error
+			}
+			if strings.EqualFold(step.State, "failure") || strings.EqualFold(step.State, "error") {
+				return step.Name + ": " + step.State
+			}
+		}
+	}
+	if s := pl.effectiveStatus(); s != "" {
+		return s
+	}
+	return "unknown error"
 }
 
 // LatestPipelineForRepo finds newest pipeline (best-effort).

@@ -108,7 +108,8 @@ func Run(cfg *config.Config, repoRoot string, m *manifest.Manifest, gi *git.Info
 	}
 
 	if opt.Wait {
-		if _, err := client.Wait(repoID, pl.Number, 5*time.Second); err != nil {
+		fmt.Printf("Pipeline #%d started — %s\n", pl.Number, res.PipelineURL)
+		if _, err := client.WaitWithProgress(repoID, pl.Number, 3*time.Second, os.Stdout); err != nil {
 			return res, err
 		}
 	}
