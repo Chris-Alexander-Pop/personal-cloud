@@ -13,13 +13,13 @@ import (
 const FileName = ".personal-cloud.yaml"
 
 type Manifest struct {
-	Name    string       `yaml:"name"`
-	Image   string       `yaml:"image"`
-	Build   Build        `yaml:"build"`
-	Service Service      `yaml:"service"`
-	Route   Route        `yaml:"route"`
-	Compose Compose      `yaml:"compose"`
-	Test    string       `yaml:"test"`
+	Name    string  `yaml:"name"`
+	Image   string  `yaml:"image"`
+	Build   Build   `yaml:"build"`
+	Service Service `yaml:"service"`
+	Route   Route   `yaml:"route"`
+	Compose Compose `yaml:"compose"`
+	Test    string  `yaml:"test"`
 }
 
 type Build struct {

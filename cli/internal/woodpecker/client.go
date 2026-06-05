@@ -42,9 +42,9 @@ type Pipeline struct {
 }
 
 type Workflow struct {
-	Name     string `json:"name"`
-	State    string `json:"state"`
-	Error    string `json:"error,omitempty"`
+	Name     string  `json:"name"`
+	State    string  `json:"state"`
+	Error    string  `json:"error,omitempty"`
 	Children []*Step `json:"children,omitempty"`
 }
 
@@ -240,14 +240,20 @@ func saveCache(path string, c repoCache) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// Wait polls until pipeline reaches terminal state.
-func (c *Client) Wait(repoID, number int64, interval time.Duration) (*Pipeline, error) {
-	return c.WaitWithProgress(repoID, number, interval, nil)
+// Reporter receives live pipeline progress events from Wait. All methods are
+// optional in spirit; a nil Reporter disables progress reporting entirely.
+type Reporter interface {
+	// Status fires when the overall pipeline status changes.
+	Status(number int64, status string)
+	// Step fires when a workflow step transitions to a new state.
+	Step(workflow, step, state, errMsg string)
+	// Linter fires for pipeline-level configuration errors.
+	Linter(msg string)
 }
 
-// WaitWithProgress polls the pipeline and prints workflow/step changes to w.
-// Pass nil for w to wait silently (legacy behavior).
-func (c *Client) WaitWithProgress(repoID, number int64, interval time.Duration, w io.Writer) (*Pipeline, error) {
+// Wait polls until the pipeline reaches a terminal state, emitting progress to
+// the supplied Reporter. Pass nil to wait silently.
+func (c *Client) Wait(repoID, number int64, interval time.Duration, r Reporter) (*Pipeline, error) {
 	seen := make(map[string]string)
 	var lastPipelineStatus string
 
@@ -258,33 +264,26 @@ func (c *Client) WaitWithProgress(repoID, number int64, interval time.Duration, 
 		}
 
 		status := strings.ToLower(pl.effectiveStatus())
-		if w != nil && status != "" && status != lastPipelineStatus {
-			fmt.Fprintf(w, "pipeline #%d: %s\n", pl.Number, status)
+		if r != nil && status != "" && status != lastPipelineStatus {
+			r.Status(pl.Number, status)
 			lastPipelineStatus = status
 		}
 
-		if w != nil {
-			printPipelineProgress(w, pl, seen)
+		if r != nil {
+			reportProgress(r, pl, seen)
 		}
 
 		switch status {
 		case "success":
-			if w != nil {
-				fmt.Fprintf(w, "pipeline #%d succeeded\n", pl.Number)
-			}
 			return pl, nil
 		case "failure", "error", "killed", "declined":
-			msg := pipelineFailureMessage(pl)
-			if w != nil {
-				fmt.Fprintf(w, "pipeline #%d failed: %s\n", pl.Number, msg)
-			}
-			return pl, fmt.Errorf("pipeline failed: %s", msg)
+			return pl, fmt.Errorf("pipeline failed: %s", pipelineFailureMessage(pl))
 		}
 		time.Sleep(interval)
 	}
 }
 
-func printPipelineProgress(w io.Writer, pl *Pipeline, seen map[string]string) {
+func reportProgress(r Reporter, pl *Pipeline, seen map[string]string) {
 	for _, wf := range pl.Workflows {
 		wfLabel := wf.Name
 		if wfLabel == "" {
@@ -303,16 +302,13 @@ func printPipelineProgress(w io.Writer, pl *Pipeline, seen map[string]string) {
 				continue
 			}
 			seen[key] = state
-			fmt.Fprintf(w, "  %s: %s\n", step.Name, state)
-			if step.Error != "" {
-				fmt.Fprintf(w, "    %s\n", step.Error)
-			}
+			r.Step(wfLabel, step.Name, state, step.Error)
 		}
 		if wf.Error != "" {
 			key := wfLabel + "/__error__"
 			if seen[key] != wf.Error {
 				seen[key] = wf.Error
-				fmt.Fprintf(w, "  %s: %s\n", wfLabel, wf.Error)
+				r.Step(wfLabel, wfLabel, "error", wf.Error)
 			}
 		}
 	}
@@ -323,7 +319,7 @@ func printPipelineProgress(w io.Writer, pl *Pipeline, seen map[string]string) {
 		key := "error:" + pe.Message
 		if seen[key] != pe.Message {
 			seen[key] = pe.Message
-			fmt.Fprintf(w, "  linter: %s\n", pe.Message)
+			r.Linter(pe.Message)
 		}
 	}
 }

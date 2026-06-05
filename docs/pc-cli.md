@@ -25,6 +25,8 @@ chmod 600 ~/.config/pc/config.yaml
 | `woodpecker.token` | Personal access token from Woodpecker → User settings |
 | `personal_cloud.owner` / `repo` | GitHub repo that runs `.woodpecker/ship.yaml` |
 | `ghcr.token` | GitHub PAT with `write:packages` (for `pc ship --local`) |
+| `vm.ssh` | SSH config Host alias for the VM (e.g. `deploy`) |
+| `personal_cloud.local_path` | Local clone of personal-cloud (for `pc env init`) |
 | `defaults.tailnet_base` | Suffix for private routes, e.g. `example.ts.net` |
 
 ## Manifest (per app repo)
@@ -59,18 +61,36 @@ pc ship --private    # Tailscale-only route (tls internal)
 pc ship --public     # force public ACME route
 pc ship --tag v1.0.0 # image tag (default: dev-<git-sha>)
 pc ship --wait       # block until pipeline finishes
+pc env init          # copy apps/<name>/.env.example → ~/.config/pc/env/<name>.env
+pc env init --force  # overwrite existing local env file
+pc env push          # scp local env to VM (compose.env_file path)
+pc env push --file PATH  # upload a specific file instead of the default
 pc status            # latest personal-cloud pipeline state
 pc logs              # print Woodpecker pipeline URL
 ```
 
+## Output
+
+`pc` renders a colored UI with spinners, detail panels, status badges and live
+pipeline progress when stdout is a TTY. It degrades to plain text automatically
+when piped or redirected.
+
+| Env var | Effect |
+|---------|--------|
+| `NO_COLOR` | disable all colors/animations (takes precedence) |
+| `PC_FORCE_COLOR=1` | force colors even when not a TTY (e.g. piping to `less -R`) |
+| `TERM=dumb` | treated as no-color |
+
 ## First deploy (your-app example)
 
-1. VM: platform stack running, `apps/example-app/.env` created from `.env.example`
+1. VM: platform stack running
 2. Woodpecker: activate `your-github-username/personal-cloud`, secrets `ghcr_token`, optional `github_clone_token`
-3. Laptop: `~/.config/pc/config.yaml` filled in
+3. Laptop: `~/.config/pc/config.yaml` filled in (`vm.ssh`, `personal_cloud.local_path`)
 4. From your-app repo:
 
 ```bash
+pc env init          # once — edit ~/.config/pc/env/example-app.env
+pc env push          # before first ship (and after secret changes)
 pc validate
 pc ship --wait
 ```

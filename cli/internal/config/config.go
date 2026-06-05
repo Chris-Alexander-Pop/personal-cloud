@@ -20,6 +20,7 @@ type Config struct {
 	GitHub        GitHub     `yaml:"github"`
 	Defaults      Defaults   `yaml:"defaults"`
 	GHCR          GHCR       `yaml:"ghcr"`
+	VM            VM         `yaml:"vm"`
 }
 
 type Woodpecker struct {
@@ -28,8 +29,13 @@ type Woodpecker struct {
 }
 
 type Personal struct {
-	Owner string `yaml:"owner"`
-	Repo  string `yaml:"repo"`
+	Owner     string `yaml:"owner"`
+	Repo      string `yaml:"repo"`
+	LocalPath string `yaml:"local_path"`
+}
+
+type VM struct {
+	SSH string `yaml:"ssh"`
 }
 
 type GitHub struct {
@@ -116,6 +122,7 @@ func Example() string {
 personal_cloud:
   owner: your-github-username
   repo: personal-cloud
+  local_path: ~/personal-cloud
 github:
   owner: your-github-username
 defaults:
@@ -123,5 +130,7 @@ defaults:
   registry: ghcr.io
 ghcr:
   token: YOUR_GITHUB_PAT_WITH_PACKAGES
+vm:
+  ssh: deploy
 `
 }

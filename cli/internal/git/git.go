@@ -8,12 +8,12 @@ import (
 )
 
 type Info struct {
-	Root       string
-	Remote     string // owner/repo
-	Branch     string
-	FullSHA    string
-	ShortSHA   string
-	Dirty      bool
+	Root     string
+	Remote   string // owner/repo
+	Branch   string
+	FullSHA  string
+	ShortSHA string
+	Dirty    bool
 }
 
 func Discover(repoRoot string) (*Info, error) {
