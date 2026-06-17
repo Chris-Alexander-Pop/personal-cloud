@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/your-github-username/personal-cloud/cli/internal/config"
-	"github.com/your-github-username/personal-cloud/cli/internal/manifest"
+	"github.com/your-org/personal-cloud/cli/internal/config"
+	"github.com/your-org/personal-cloud/cli/internal/manifest"
 )
 
 func TestExpandHome(t *testing.T) {

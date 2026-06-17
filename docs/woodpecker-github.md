@@ -30,66 +30,61 @@ cd /opt/personal-cloud/platform && docker compose up -d
 
 1. Open `WOODPECKER_HOST` in a browser (via Tailscale).
 2. Sign in with GitHub.
-3. **Repositories** → **New repository** → enable:
-   - `your-github-username/personal-cloud` (compose validation on push)
-   - `your-github-username/your-app` (release pipeline on tags)
+3. **Repositories** → **New repository** → enable **your-github-username/personal-cloud**.
 
-You need **admin** on each repo so Woodpecker can install webhooks.
+You need **admin** on the repo so Woodpecker can install webhooks.
 
-## 3. Woodpecker secrets (your-app repo)
+App repos do **not** need to be activated in Woodpecker when using `pc ship` — only personal-cloud runs the ship pipeline.
 
-In Woodpecker: **your-app** repo → **Settings** → **Secrets**:
+## 3. Woodpecker secrets (personal-cloud repo)
+
+In Woodpecker: **personal-cloud** repo → **Settings** → **Secrets**:
 
 | Name | Value |
 |------|--------|
 | `ghcr_token` | GitHub PAT (classic or fine-grained) with `write:packages` and `read:packages` |
+| `github_clone_token` | Optional — PAT with repo read access for private app repos |
 
-Fine-grained PAT: limit to the `your-app` repo and Packages permission.
+Fine-grained PAT: limit to the repos and Packages permission you need.
 
 ## 4. GHCR package visibility
 
-After the first successful release build, the image appears at:
+After the first successful ship, images appear at:
 
-`ghcr.io/your-github-username/example-app`
+`ghcr.io/your-github-username/<app-name>`
 
-For a **private** repo, set the package to **private** or grant the VM’s pull credentials (the pipeline logs in with `ghcr_token` before `compose pull`).
+For a **private** package, set visibility in GitHub Packages or grant the VM pull credentials (the pipeline logs in with `ghcr_token` before `compose pull`).
 
 ## 5. VM paths the pipeline expects
 
 | Path | Purpose |
 |------|---------|
-| `/opt/personal-cloud/apps/example-app/.env` | Runtime secrets (not in git) |
+| `/opt/personal-cloud/apps/<app>/.env` | Runtime secrets (not in git) |
 | `/var/run/docker.sock` | Agent mounts this for build/deploy steps |
 | Network `personal-cloud_edge` | Created by `platform/docker compose up` |
 
-Bootstrap clones the repo to `/opt/personal-cloud`. The deploy step clones fresh compose YAML from GitHub but uses the **stable** `.env` on disk.
+Bootstrap clones the repo to `/opt/personal-cloud`. The ship pipeline renders compose and Caddy config on disk and uses the **stable** `.env` per app.
 
-## 6. First release
+## 6. Verify a deploy
+
+From your app repo:
 
 ```bash
-cd your-app
-git tag v0.1.0
-git push origin v0.1.0
+pc validate
+pc ship --wait
 ```
 
-In Woodpecker → your-app → Pipelines, confirm:
-
-1. `test-server` passes  
-2. `build-and-push` publishes to GHCR  
-3. `deploy` runs `compose pull` / `up -d`
-
-Verify:
+On the VM:
 
 ```bash
-curl -fsS https://api.example.com/health
-# or on the VM:
-docker exec example-app timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'
+docker compose -f /opt/personal-cloud/apps/<app>/compose.yaml ps
+curl -fsS "https://<route-host>/health"
 ```
 
 ## Rollback
 
 ```bash
-IMAGE_TAG=v0.0.9 /opt/personal-cloud/scripts/deploy-app.sh example-app
+IMAGE_TAG=v0.0.9 /opt/personal-cloud/scripts/deploy-app.sh <app-name>
 ```
 
-Or re-run a previous tag pipeline from the Woodpecker UI.
+Or re-run a previous pipeline from the Woodpecker UI.

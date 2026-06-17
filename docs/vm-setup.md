@@ -102,7 +102,7 @@ Create app env before first deploy:
 ```bash
 cp /opt/personal-cloud/apps/example-app/.env.example /opt/personal-cloud/apps/example-app/.env
 chmod 600 /opt/personal-cloud/apps/example-app/.env
-# Edit secrets and POSTGRES_PASSWORD
+# Edit secrets for your app
 ```
 
 Next: [woodpecker-github.md](woodpecker-github.md).

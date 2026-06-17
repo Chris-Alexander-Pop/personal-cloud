@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/your-github-username/personal-cloud/cli/internal/config"
-	"github.com/your-github-username/personal-cloud/cli/internal/manifest"
+	"github.com/your-org/personal-cloud/cli/internal/config"
+	"github.com/your-org/personal-cloud/cli/internal/manifest"
 )
 
 const envSubdir = "env"

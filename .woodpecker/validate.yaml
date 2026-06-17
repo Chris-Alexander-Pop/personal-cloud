@@ -8,10 +8,9 @@ steps:
     commands:
       - docker compose -f platform/docker-compose.yml config --quiet
 
-  - name: compose-config-your-app
+  - name: compose-config-example-app
     image: docker:cli
     commands:
       - |
         export IMAGE_TAG=ci-validate
-        export POSTGRES_PASSWORD=ci
         docker compose -f apps/example-app/compose.yaml --env-file apps/example-app/.env.example config --quiet

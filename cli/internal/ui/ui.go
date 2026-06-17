@@ -113,17 +113,16 @@ func Logo(tagline string) {
 	fmt.Fprintln(Out)
 	fmt.Fprintf(Out, "  %s %s%spc%s %s\n", bar, cBold, cBrand, cReset, Dim("personal-cloud"))
 	fmt.Fprintf(Out, "  %s %s\n", bar, Dim(tagline))
-	fmt.Fprintln(Out)
 }
 
 // Heading prints a section heading with a leading brand bar.
 func Heading(title string) {
 	fmt.Fprintln(Out)
 	if !Enabled {
-		fmt.Fprintf(Out, "== %s ==\n", title)
+		fmt.Fprintf(Out, "  == %s ==\n", title)
 		return
 	}
-	fmt.Fprintf(Out, "%s▌%s %s%s%s\n", cBrand, cReset, cBold, title, cReset)
+	fmt.Fprintf(Out, "  %s▌%s %s%s%s\n", cBrand, cReset, cBold, title, cReset)
 }
 
 // Rule prints a faint horizontal divider.

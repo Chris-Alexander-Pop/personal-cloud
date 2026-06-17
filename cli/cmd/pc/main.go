@@ -6,12 +6,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/your-github-username/personal-cloud/cli/internal/config"
-	"github.com/your-github-username/personal-cloud/cli/internal/git"
-	"github.com/your-github-username/personal-cloud/cli/internal/manifest"
-	"github.com/your-github-username/personal-cloud/cli/internal/ship"
-	"github.com/your-github-username/personal-cloud/cli/internal/ui"
-	"github.com/your-github-username/personal-cloud/cli/internal/woodpecker"
+	"github.com/your-org/personal-cloud/cli/internal/config"
+	"github.com/your-org/personal-cloud/cli/internal/git"
+	"github.com/your-org/personal-cloud/cli/internal/manifest"
+	"github.com/your-org/personal-cloud/cli/internal/ship"
+	"github.com/your-org/personal-cloud/cli/internal/ui"
+	"github.com/your-org/personal-cloud/cli/internal/woodpecker"
 )
 
 func main() {

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/your-github-username/personal-cloud/cli/internal/config"
-	"github.com/your-github-username/personal-cloud/cli/internal/git"
-	"github.com/your-github-username/personal-cloud/cli/internal/manifest"
-	"github.com/your-github-username/personal-cloud/cli/internal/ui"
-	"github.com/your-github-username/personal-cloud/cli/internal/woodpecker"
+	"github.com/your-org/personal-cloud/cli/internal/config"
+	"github.com/your-org/personal-cloud/cli/internal/git"
+	"github.com/your-org/personal-cloud/cli/internal/manifest"
+	"github.com/your-org/personal-cloud/cli/internal/ui"
+	"github.com/your-org/personal-cloud/cli/internal/woodpecker"
 )
 
 type Options struct {
@@ -85,6 +85,7 @@ func Run(cfg *config.Config, repoRoot string, m *manifest.Manifest, gi *git.Info
 		"BUILD_CONTEXT":       m.Build.Context,
 		"BUILD_DOCKERFILE":    m.Build.Dockerfile,
 		"TEST_SCRIPT":         m.Test,
+		"GITHUB_OWNER":        cfg.GitHub.Owner,
 	}
 
 	client := woodpecker.New(woodpecker.NormalizeURL(cfg.Woodpecker.URL), cfg.Woodpecker.Token)

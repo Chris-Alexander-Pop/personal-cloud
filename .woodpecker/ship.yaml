@@ -1,16 +1,16 @@
 # Central ship pipeline — triggered by `pc ship` (manual) with pipeline variables.
-# Secrets: ghcr_token, github_clone_token (optional, for private repos)
+# Secrets on personal-cloud repo: ghcr_token, github_clone_token (optional)
 
 when:
   - event: manual
 
-# Postgres for app test steps (hostname: postgres). Matches your-app server-ci / docker-compose.
+# Postgres for optional app test steps (hostname: postgres).
 services:
   - name: postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_PASSWORD: ci
       POSTGRES_DB: app
 
 steps:
@@ -19,7 +19,7 @@ steps:
     commands:
       - |
         set -eu
-        for v in APP_NAME SOURCE_REPO SOURCE_REF IMAGE IMAGE_REPO IMAGE_TAG DO_BUILD EXPOSURE ROUTE_HOST SERVICE_CONTAINER SERVICE_PORT COMPOSE_TEMPLATE COMPOSE_ENV_FILE BUILD_CONTEXT BUILD_DOCKERFILE; do
+        for v in APP_NAME SOURCE_REPO SOURCE_REF IMAGE IMAGE_REPO IMAGE_TAG DO_BUILD EXPOSURE ROUTE_HOST SERVICE_CONTAINER SERVICE_PORT COMPOSE_TEMPLATE COMPOSE_ENV_FILE BUILD_CONTEXT BUILD_DOCKERFILE GITHUB_OWNER; do
           eval "val=\$$v"
           if [ -z "$val" ]; then
             echo "missing required variable: $v" >&2
@@ -48,7 +48,7 @@ steps:
   - name: test
     image: rust:1.88-bookworm
     environment:
-      DATABASE_URL: postgres://app:app@postgres:5432/app
+      DATABASE_URL: postgres://app:ci@postgres:5432/app
       JWT_SECRET: ci-test-jwt-secret
     commands:
       - |
@@ -80,7 +80,7 @@ steps:
       GHCR_TOKEN:
         from_secret: ghcr_token
     commands:
-      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u your-github-username --password-stdin
+      - echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GITHUB_OWNER" --password-stdin
       - |
         docker buildx build --push \
           -t "${IMAGE}:${IMAGE_TAG}" -t "${IMAGE}:latest" \
@@ -107,7 +107,7 @@ steps:
         set -eu
         export IMAGE_TAG="${IMAGE_TAG}"
         COMPOSE_FILE="/opt/personal-cloud/apps/${APP_NAME}/compose.yaml"
-        echo "$$GHCR_TOKEN" | docker login ghcr.io -u your-github-username --password-stdin
+        echo "$$GHCR_TOKEN" | docker login ghcr.io -u "$$GITHUB_OWNER" --password-stdin
         docker compose -f "$COMPOSE_FILE" --env-file "$COMPOSE_ENV_FILE" pull
         docker compose -f "$COMPOSE_FILE" --env-file "$COMPOSE_ENV_FILE" up -d
     environment:

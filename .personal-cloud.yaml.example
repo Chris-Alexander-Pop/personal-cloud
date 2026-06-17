@@ -1,0 +1,22 @@
+# Copy to your app repo as .personal-cloud.yaml (or run `pc init`).
+name: my-app
+image: ghcr.io/your-github-username/my-app
+
+build:
+  context: .
+  dockerfile: Dockerfile
+
+service:
+  container: my-app
+  port: 8080
+  health_path: /health
+
+route:
+  exposure: private   # or public
+  # host: api.example.com   # required when exposure is public
+
+compose:
+  template: default   # or with-postgres
+
+# Optional: shell command run in CI before build (requires with-postgres if it needs a DB)
+# test: cargo test

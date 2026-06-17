@@ -1,12 +1,12 @@
 # `pc` CLI
 
-Deploy any repo with a [`.personal-cloud.yaml`](../.personal-cloud.yaml) manifest via Woodpecker on your personal-cloud VM. No per-app Woodpecker setup — only the **personal-cloud** repo must be activated.
+Deploy any repo with a `.personal-cloud.yaml` manifest via Woodpecker on your personal-cloud VM. No per-app Woodpecker setup — only the **personal-cloud** repo must be activated.
 
 ## Install
 
 ```bash
-cd Infra/personal-cloud
-make install-pc   # installs ~/.local/bin/pc
+git clone https://github.com/your-github-username/personal-cloud.git ~/personal-cloud
+make -C ~/personal-cloud install-pc   # installs ~/.local/bin/pc
 ```
 
 Ensure `~/.local/bin` is on your `PATH`.
@@ -15,7 +15,7 @@ Ensure `~/.local/bin` is on your `PATH`.
 
 ```bash
 mkdir -p ~/.config/pc
-cp Infra/personal-cloud/cli/config.yaml.example ~/.config/pc/config.yaml
+cp ~/personal-cloud/cli/config.yaml.example ~/.config/pc/config.yaml
 chmod 600 ~/.config/pc/config.yaml
 ```
 
@@ -31,7 +31,7 @@ chmod 600 ~/.config/pc/config.yaml
 
 ## Manifest (per app repo)
 
-Create with `pc init` or copy from [your-app example](../../../path/to/your-app/.personal-cloud.yaml).
+Create with `pc init` or copy [.personal-cloud.yaml.example](../.personal-cloud.yaml.example).
 
 ```yaml
 name: my-app
@@ -81,22 +81,23 @@ when piped or redirected.
 | `PC_FORCE_COLOR=1` | force colors even when not a TTY (e.g. piping to `less -R`) |
 | `TERM=dumb` | treated as no-color |
 
-## First deploy (your-app example)
+## First deploy
 
-1. VM: platform stack running
-2. Woodpecker: activate `your-github-username/personal-cloud`, secrets `ghcr_token`, optional `github_clone_token`
-3. Laptop: `~/.config/pc/config.yaml` filled in (`vm.ssh`, `personal_cloud.local_path`)
-4. From your-app repo:
+1. VM: platform stack running ([docs/vm-setup.md](vm-setup.md))
+2. Woodpecker: activate `your-github-username/personal-cloud`, add secrets `ghcr_token` and optional `github_clone_token`
+3. Laptop: `~/.config/pc/config.yaml` filled in (`vm.ssh`, `personal_cloud.local_path`, `github.owner`)
+4. On VM once: `cp apps/<app>/.env.example apps/<app>/.env` and edit secrets (or use `pc env init` + `pc env push` from laptop)
+5. From your app repo:
 
 ```bash
-pc env init          # once — edit ~/.config/pc/env/example-app.env
+pc env init          # once — edit ~/.config/pc/env/<app>.env
 pc env push          # before first ship (and after secret changes)
 pc validate
 pc ship --wait
 ```
 
-5. Public: point DNS at VM, `curl https://api.example.com/health`  
-   Private: open `https://example-app.example.ts.net/health` on Tailscale
+6. Public: point DNS at VM, `curl https://api.example.com/health`  
+   Private: open `https://my-app.example.ts.net/health` on Tailscale
 
 ## Public vs private routes
 
@@ -108,6 +109,8 @@ pc ship --wait
 Woodpecker writes `platform/caddy/sites/<app>.caddy` and reloads Caddy.
 
 ## Woodpecker secrets
+
+Add these on the **personal-cloud** repo in Woodpecker → Settings → Secrets:
 
 | Secret | Used for |
 |--------|----------|
@@ -127,4 +130,4 @@ Builds with `docker buildx --push` on your machine, then triggers ship with `DO_
 - **repo not found in Woodpecker** — activate `personal-cloud` in the UI
 - **missing variable** — upgrade `pc` and ensure `.personal-cloud.yaml` is complete
 - **health check failed** — app may still be starting; check `docker compose -f /opt/personal-cloud/apps/<name>/compose.yaml ps`
-- **compose template** — use `with-postgres` for DB-backed apps like example-app
+- **compose template** — use `with-postgres` for DB-backed apps

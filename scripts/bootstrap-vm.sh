@@ -85,7 +85,7 @@ if [[ ! -f "$INSTALL_ROOT/apps/example-app/.env" ]]; then
   cp "$INSTALL_ROOT/apps/example-app/.env.example" "$INSTALL_ROOT/apps/example-app/.env"
   chmod 600 "$INSTALL_ROOT/apps/example-app/.env"
   chown "${DEPLOY_USER}:${DEPLOY_USER}" "$INSTALL_ROOT/apps/example-app/.env"
-  log "Created apps/example-app/.env — set POSTGRES_PASSWORD, JWT_SECRET, etc."
+  log "Created apps/example-app/.env — edit app secrets before first deploy"
 fi
 
 log "Docker daemon.json (DNS + log rotation)"
@@ -118,13 +118,13 @@ log "Next steps"
 cat <<EOF
 
 1. Edit ${INSTALL_ROOT}/platform/woodpecker/.env (GitHub OAuth) — see docs/woodpecker-github.md
-2. Edit ${INSTALL_ROOT}/platform/caddy/Caddyfile (your API domain)
-3. Edit ${INSTALL_ROOT}/apps/example-app/.env (secrets)
+2. Edit ${INSTALL_ROOT}/platform/caddy/Caddyfile (ACME email is set via env)
+3. Create ${INSTALL_ROOT}/apps/<your-app>/.env from .env.example for each app you deploy
 4. tailscale up   # if not done
 5. cd ${INSTALL_ROOT}/platform && docker compose up -d
-6. Open Woodpecker at http://<tailscale-ip>:8000 and activate repos
-7. Add ghcr_token secret on your-app repo in Woodpecker
-8. git tag v0.1.0 && git push origin v0.1.0   # from your-app repo
+6. Open Woodpecker at http://<tailscale-ip>:8000 and activate personal-cloud
+7. Add ghcr_token (and optional github_clone_token) secrets in Woodpecker
+8. From your laptop: configure ~/.config/pc/config.yaml and run pc ship from an app repo
 
 EOF
 

@@ -25,10 +25,9 @@ func NewSpinner(msg string) *Spinner {
 	return &Spinner{msg: msg}
 }
 
-// Start begins the animation. On non-TTY it prints a single step line.
+// Start begins the animation. On non-TTY it waits silently for Success/Fail.
 func (s *Spinner) Start() *Spinner {
 	if !Enabled {
-		fmt.Fprintf(Out, "  %s %s\n", arrow(), s.msg)
 		return s
 	}
 	s.mu.Lock()

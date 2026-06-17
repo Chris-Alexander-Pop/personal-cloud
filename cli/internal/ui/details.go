@@ -44,9 +44,16 @@ func (d *Details) Render() {
 // Box renders a titled box around the given content lines.
 func Box(title string, lines []string) {
 	fmt.Fprintln(Out)
+
+	content := make([]string, 0, len(lines)+1)
+	if title != "" {
+		content = append(content, Bold(title))
+	}
+	content = append(content, lines...)
+
 	if !Enabled {
 		if title != "" {
-			fmt.Fprintf(Out, "[ %s ]\n", title)
+			fmt.Fprintf(Out, "  [ %s ]\n", title)
 		}
 		for _, ln := range lines {
 			fmt.Fprintf(Out, "  %s\n", stripANSI(ln))
@@ -54,34 +61,30 @@ func Box(title string, lines []string) {
 		return
 	}
 
-	width := utf8.RuneCountInString(stripANSI(title))
-	for _, ln := range lines {
+	width := 0
+	for _, ln := range content {
 		if w := utf8.RuneCountInString(stripANSI(ln)); w > width {
 			width = w
 		}
 	}
-	inner := width + 2
-	tl, tr, bl, br := "╭", "╮", "╰", "╯"
-	h, v := "─", "│"
+	inner := width + 2 // one space of padding on each side
 
-	top := cBrand + tl + strings.Repeat(h, inner) + tr + cReset
-	if title != "" {
-		t := " " + Bold(title) + " "
-		dashes := inner - utf8.RuneCountInString(stripANSI(t))
-		if dashes < 0 {
-			dashes = 0
-		}
-		top = cBrand + tl + h + cReset + t + cBrand + strings.Repeat(h, dashes-1) + tr + cReset
+	border := func(left, fill, right string) string {
+		return cBrand + left + strings.Repeat(fill, inner) + right + cReset
 	}
-	fmt.Fprintln(Out, "  "+top)
-	for _, ln := range lines {
-		pad := inner - 1 - utf8.RuneCountInString(stripANSI(ln))
+	left := cBrand + "│" + cReset + " "
+	right := " " + cBrand + "│" + cReset
+
+	fmt.Fprintln(Out, "  "+border("╭", "─", "╮"))
+	for _, ln := range content {
+		vis := utf8.RuneCountInString(stripANSI(ln))
+		pad := inner - vis - 2
 		if pad < 0 {
 			pad = 0
 		}
-		fmt.Fprintf(Out, "  %s %s%s %s\n", cBrand+v+cReset, ln, strings.Repeat(" ", pad), cBrand+v+cReset)
+		fmt.Fprintf(Out, "  %s%s%s%s\n", left, ln, strings.Repeat(" ", pad), right)
 	}
-	fmt.Fprintln(Out, "  "+cBrand+bl+strings.Repeat(h, inner)+br+cReset)
+	fmt.Fprintln(Out, "  "+border("╰", "─", "╯"))
 }
 
 // stripANSI removes escape sequences so visible width can be measured.
