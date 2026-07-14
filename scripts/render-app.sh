@@ -36,9 +36,12 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change-me}"
 export MEDIA_HOST_PATH="${MEDIA_HOST_PATH:-/opt/personal-cloud/data/orthodox-talks}"
+export DATA_HOST_PATH="${DATA_HOST_PATH:-/opt/personal-cloud/data/${APP_NAME}}"
+
+mkdir -p "${DATA_HOST_PATH}"
 
 echo "Rendering compose -> ${APP_DIR}/compose.yaml"
-envsubst '${APP_NAME} ${IMAGE} ${IMAGE_TAG} ${SERVICE_CONTAINER} ${SERVICE_PORT} ${POSTGRES_PASSWORD} ${MEDIA_HOST_PATH}' \
+envsubst '${APP_NAME} ${IMAGE} ${IMAGE_TAG} ${SERVICE_CONTAINER} ${SERVICE_PORT} ${POSTGRES_PASSWORD} ${MEDIA_HOST_PATH} ${DATA_HOST_PATH}' \
   < "${COMPOSE_TEMPLATE_FILE}" > "${APP_DIR}/compose.yaml"
 
 SITE_FILE="${CADDY_SITES}/${APP_NAME}.caddy"

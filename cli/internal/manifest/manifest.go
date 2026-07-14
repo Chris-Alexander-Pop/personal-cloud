@@ -118,13 +118,16 @@ func (m *Manifest) Validate(repoRoot string) error {
 	if exposure == "public" && m.Route.Host == "" {
 		errs = append(errs, errors.New("route.host is required when exposure is public"))
 	}
-	if m.Compose.Template != "default" && m.Compose.Template != "with-postgres" {
-		errs = append(errs, fmt.Errorf("compose.template must be default or with-postgres, got %q", m.Compose.Template))
+	if m.Compose.Template != "default" && m.Compose.Template != "with-postgres" && m.Compose.Template != "with-media-volume" && m.Compose.Template != "with-data-volume" {
+		errs = append(errs, fmt.Errorf("compose.template must be default, with-postgres, with-media-volume, or with-data-volume, got %q", m.Compose.Template))
 	}
 
 	df := filepath.Join(repoRoot, m.Build.Dockerfile)
 	if _, err := os.Stat(df); err != nil {
-		errs = append(errs, fmt.Errorf("dockerfile not found: %s", df))
+		alt := filepath.Join(repoRoot, m.Build.Context, m.Build.Dockerfile)
+		if _, altErr := os.Stat(alt); altErr != nil {
+			errs = append(errs, fmt.Errorf("dockerfile not found: %s", df))
+		}
 	}
 	ctx := filepath.Join(repoRoot, m.Build.Context)
 	if st, err := os.Stat(ctx); err != nil || !st.IsDir() {
