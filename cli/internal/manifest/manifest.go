@@ -43,6 +43,26 @@ type Compose struct {
 	EnvFile  string `yaml:"env_file"`
 }
 
+// ComposeTemplates are allowed compose.template values.
+var ComposeTemplates = []string{
+	"default",
+	"with-postgres",
+	"with-media-volume",
+	"with-data-volume",
+	"host-network",
+	"with-data-volume-host",
+}
+
+// ValidComposeTemplate reports whether name is a known template.
+func ValidComposeTemplate(name string) bool {
+	for _, t := range ComposeTemplates {
+		if t == name {
+			return true
+		}
+	}
+	return false
+}
+
 // Find walks from dir upward for .personal-cloud.yaml.
 func Find(start string) (string, *Manifest, error) {
 	dir, err := filepath.Abs(start)
@@ -118,8 +138,8 @@ func (m *Manifest) Validate(repoRoot string) error {
 	if exposure == "public" && m.Route.Host == "" {
 		errs = append(errs, errors.New("route.host is required when exposure is public"))
 	}
-	if m.Compose.Template != "default" && m.Compose.Template != "with-postgres" && m.Compose.Template != "with-media-volume" && m.Compose.Template != "with-data-volume" {
-		errs = append(errs, fmt.Errorf("compose.template must be default, with-postgres, with-media-volume, or with-data-volume, got %q", m.Compose.Template))
+	if !ValidComposeTemplate(m.Compose.Template) {
+		errs = append(errs, fmt.Errorf("compose.template must be one of %s, got %q", strings.Join(ComposeTemplates, ", "), m.Compose.Template))
 	}
 
 	df := filepath.Join(repoRoot, m.Build.Dockerfile)

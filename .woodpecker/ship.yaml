@@ -129,6 +129,17 @@ steps:
       - |
         set -eu
         sleep 5
-        docker run --rm --network personal-cloud_edge curlimages/curl:8.7.1 \
-          -fsS "http://${SERVICE_CONTAINER}:${SERVICE_PORT}${SERVICE_HEALTH_PATH:-/health}" \
-          || echo "health check failed (app may still be starting)"
+        HEALTH_PATH="${SERVICE_HEALTH_PATH:-/health}"
+        case "${COMPOSE_TEMPLATE}" in
+          host-network|with-data-volume-host)
+            # App listens on the VM; not attached to personal-cloud_edge
+            docker run --rm --add-host=host.docker.internal:host-gateway curlimages/curl:8.7.1 \
+              -fsS "http://host.docker.internal:${SERVICE_PORT}${HEALTH_PATH}" \
+              || echo "health check failed (app may still be starting)"
+            ;;
+          *)
+            docker run --rm --network personal-cloud_edge curlimages/curl:8.7.1 \
+              -fsS "http://${SERVICE_CONTAINER}:${SERVICE_PORT}${HEALTH_PATH}" \
+              || echo "health check failed (app may still be starting)"
+            ;;
+        esac

@@ -44,6 +44,15 @@ echo "Rendering compose -> ${APP_DIR}/compose.yaml"
 envsubst '${APP_NAME} ${IMAGE} ${IMAGE_TAG} ${SERVICE_CONTAINER} ${SERVICE_PORT} ${POSTGRES_PASSWORD} ${MEDIA_HOST_PATH} ${DATA_HOST_PATH}' \
   < "${COMPOSE_TEMPLATE_FILE}" > "${APP_DIR}/compose.yaml"
 
+# Host-network apps bind on the VM; Caddy (bridge) reaches them via host gateway.
+PROXY_UPSTREAM="${SERVICE_CONTAINER}:${SERVICE_PORT}"
+case "${COMPOSE_TEMPLATE}" in
+  host-network|with-data-volume-host)
+    PROXY_UPSTREAM="${DOCKER_HOST_GATEWAY:-host.docker.internal}:${SERVICE_PORT}"
+    echo "Host-network template: Caddy upstream ${PROXY_UPSTREAM}"
+    ;;
+esac
+
 SITE_FILE="${CADDY_SITES}/${APP_NAME}.caddy"
 echo "Rendering Caddy site -> ${SITE_FILE}"
 
@@ -52,14 +61,14 @@ if [[ "${EXPOSURE}" == "private" ]]; then
 # ${APP_NAME} — Tailscale / private (tls internal)
 ${ROUTE_HOST} {
 	tls internal
-	reverse_proxy ${SERVICE_CONTAINER}:${SERVICE_PORT}
+	reverse_proxy ${PROXY_UPSTREAM}
 }
 EOF
 else
   cat > "${SITE_FILE}" <<EOF
 # ${APP_NAME} — public
 ${ROUTE_HOST} {
-	reverse_proxy ${SERVICE_CONTAINER}:${SERVICE_PORT}
+	reverse_proxy ${PROXY_UPSTREAM}
 }
 EOF
 fi

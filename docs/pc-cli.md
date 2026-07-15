@@ -46,7 +46,7 @@ route:
   exposure: public    # or private
   host: api.example.com   # required if public
 compose:
-  template: default   # or with-postgres
+  template: default   # default | with-postgres | with-data-volume | with-data-volume-host | …
 test: optional shell command run before build
 ```
 
@@ -130,4 +130,4 @@ Builds with `docker buildx --push` on your machine, then triggers ship with `DO_
 - **repo not found in Woodpecker** — activate `personal-cloud` in the UI
 - **missing variable** — upgrade `pc` and ensure `.personal-cloud.yaml` is complete
 - **health check failed** — app may still be starting; check `docker compose -f /opt/personal-cloud/apps/<name>/compose.yaml ps`
-- **compose template** — use `with-postgres` for DB-backed apps
+- **compose template** — `with-postgres` for DB apps; `with-data-volume-host` for LAN UDP / host-network apps (see [adding-an-app.md](adding-an-app.md))

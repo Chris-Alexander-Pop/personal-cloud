@@ -48,6 +48,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    extra_hosts:
+      # Lets host-network app templates reverse_proxy via host.docker.internal
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/sites:/etc/caddy/sites

@@ -13,9 +13,22 @@ Only **personal-cloud** must be activated in Woodpecker. App repos do not need W
 1. **`.personal-cloud.yaml`** at repo root — see [pc-cli.md](pc-cli.md).
 2. **Dockerfile** at `build.dockerfile` path.
 3. **VM env file** — `/opt/personal-cloud/apps/<name>/.env` from `.env.example`.
-4. **Compose template** — `default` (single container) or `with-postgres`.
+4. **Compose template** — see table below.
 5. **DNS** — public `route.host` A record to VM, or private via Tailscale only.
 6. **Woodpecker secrets** — `ghcr_token` on personal-cloud repo; `github_clone_token` if repo is private.
+
+## Compose templates
+
+| Template | Use when |
+|----------|----------|
+| `default` | Single container on the edge network |
+| `with-postgres` | App + Postgres on an internal network |
+| `with-media-volume` | Read-only media bind mount |
+| `with-data-volume` | Writable `/data` bind mount (SQLite, JSON state) |
+| `host-network` | App needs the host network (LAN UDP / multicast) |
+| `with-data-volume-host` | Host network **and** `/data` (e.g. IoT controllers) |
+
+Host-network templates bind the app on the VM. Caddy proxies to `host.docker.internal:<port>` (platform compose adds that host mapping).
 
 ## What `pc ship` does
 
@@ -28,8 +41,9 @@ Only **personal-cloud** must be activated in Woodpecker. App repos do not need W
 
 ## Network convention
 
-- `personal-cloud_edge` — Caddy + app containers
+- `personal-cloud_edge` — Caddy + bridge-network app containers
 - `<app>_internal` — databases (with-postgres template)
+- Host-network apps — listen on the VM; not attached to `edge`
 
 Start platform before first ship:
 

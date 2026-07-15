@@ -164,7 +164,7 @@ func cmdInit(args []string) error {
 	if strings.ToLower(exposure) == "public" {
 		host = ask("Public hostname", "")
 	}
-	tmpl := ask("Compose template (default|with-postgres)", "default")
+	tmpl := ask("Compose template (default|with-postgres|with-data-volume|with-data-volume-host|…)", "default")
 
 	content := fmt.Sprintf(`name: %s
 image: %s
