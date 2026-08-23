@@ -51,6 +51,8 @@ var ComposeTemplates = []string{
 	"with-data-volume",
 	"host-network",
 	"with-data-volume-host",
+	"with-minio",
+	"with-music-stack",
 }
 
 // ValidComposeTemplate reports whether name is a known template.

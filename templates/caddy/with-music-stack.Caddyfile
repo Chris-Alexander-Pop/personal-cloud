@@ -1,0 +1,14 @@
+# Phone-edge Caddy (plain HTTP). MagicDNS + tls internal is awkward on Android.
+# Host ports 8040-8042. Keep this off the public internet.
+
+:8040 {
+	reverse_proxy navidrome:4533
+}
+
+:8041 {
+	reverse_proxy dufs:5000
+}
+
+:8042 {
+	reverse_proxy ingest:8080
+}
