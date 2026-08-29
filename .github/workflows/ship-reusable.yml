@@ -1,0 +1,123 @@
+# Trigger the existing Woodpecker .woodpecker/ship.yaml from GitHub Actions.
+# The runner joins your tailnet, then `pc` fetches the app manifest from
+# GitHub and POSTs the same pipeline variables `pc ship` always sent.
+#
+# App repos do not need their own Woodpecker config.
+name: ship reusable
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: App GitHub repo (name or owner/name)
+        required: true
+        type: string
+      ref:
+        description: App git ref (branch, tag, or SHA). Empty = default branch.
+        required: false
+        type: string
+        default: ""
+      exposure:
+        description: Force public or private (empty = manifest)
+        required: false
+        type: string
+        default: ""
+      wait:
+        description: Stream Woodpecker until the pipeline finishes
+        required: false
+        type: boolean
+        default: true
+      cli_repo:
+        description: personal-cloud repo that contains the pc CLI
+        required: false
+        type: string
+        default: ""
+    secrets:
+      WOODPECKER_URL:
+        required: true
+      WOODPECKER_TOKEN:
+        required: true
+      TS_OAUTH_CLIENT_ID:
+        required: true
+      TS_OAUTH_SECRET:
+        required: true
+      TAILNET_BASE:
+        required: false
+      GH_TOKEN:
+        required: false
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout personal-cloud CLI
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.cli_repo != '' && inputs.cli_repo || format('{0}/personal-cloud', github.repository_owner) }}
+          path: personal-cloud
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: personal-cloud/cli/go.mod
+
+      - name: Build pc
+        run: make -C personal-cloud build-pc
+
+      - name: Join tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Write pc config
+        env:
+          WOODPECKER_URL: ${{ secrets.WOODPECKER_URL }}
+          WOODPECKER_TOKEN: ${{ secrets.WOODPECKER_TOKEN }}
+          TAILNET_BASE: ${{ secrets.TAILNET_BASE }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -eu
+          mkdir -p "$HOME/.config/pc"
+          umask 077
+          {
+            echo "woodpecker:"
+            echo "  url: ${WOODPECKER_URL}"
+            echo "  token: ${WOODPECKER_TOKEN}"
+            echo "personal_cloud:"
+            echo "  owner: ${GITHUB_REPOSITORY_OWNER}"
+            echo "  repo: personal-cloud"
+            echo "github:"
+            echo "  owner: ${GITHUB_REPOSITORY_OWNER}"
+            if [ -n "${GH_TOKEN}" ]; then
+              echo "  token: ${GH_TOKEN}"
+            fi
+            echo "defaults:"
+            echo "  tailnet_base: ${TAILNET_BASE:-example.ts.net}"
+          } > "$HOME/.config/pc/config.yaml"
+
+      - name: Ship via Woodpecker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+          SHIP_REPO: ${{ inputs.repo }}
+          SHIP_REF: ${{ inputs.ref }}
+          SHIP_EXPOSURE: ${{ inputs.exposure }}
+          SHIP_WAIT: ${{ inputs.wait }}
+        run: |
+          set -eu
+          ARGS=("$SHIP_REPO")
+          if [ -n "$SHIP_REF" ]; then
+            ARGS+=(--ref "$SHIP_REF")
+          fi
+          case "$SHIP_EXPOSURE" in
+            private) ARGS+=(--private) ;;
+            public) ARGS+=(--public) ;;
+            "") ;;
+            *) echo "exposure must be empty, public, or private" >&2; exit 1 ;;
+          esac
+          if [ "$SHIP_WAIT" = "true" ]; then
+            ARGS+=(--wait)
+          fi
+          ./personal-cloud/bin/pc ship "${ARGS[@]}"

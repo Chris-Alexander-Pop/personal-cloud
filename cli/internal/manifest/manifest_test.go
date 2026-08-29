@@ -43,3 +43,28 @@ route:
 		t.Fatalf("private host: %s", m.PrivateHost("ts.net"))
 	}
 }
+
+func TestParseAndValidateRemote(t *testing.T) {
+	m, err := Parse([]byte(`name: music-serve
+image: ghcr.io/example/music-serve
+build:
+  context: .
+  dockerfile: Dockerfile
+service:
+  container: music-serve
+  port: 8040
+route:
+  exposure: private
+compose:
+  template: with-music-stack
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Validate(""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Parse([]byte("   \n")); err == nil {
+		t.Fatal("expected empty manifest error")
+	}
+}

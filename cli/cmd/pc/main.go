@@ -8,6 +8,7 @@ import (
 
 	"github.com/your-org/personal-cloud/cli/internal/config"
 	"github.com/your-org/personal-cloud/cli/internal/git"
+	ghapi "github.com/your-org/personal-cloud/cli/internal/github"
 	"github.com/your-org/personal-cloud/cli/internal/manifest"
 	"github.com/your-org/personal-cloud/cli/internal/ship"
 	"github.com/your-org/personal-cloud/cli/internal/ui"
@@ -31,8 +32,8 @@ func usage() {
 	type cmd struct{ name, args, desc string }
 	cmds := []cmd{
 		{"init", "", "scaffold a .personal-cloud.yaml manifest"},
-		{"validate", "", "check the manifest and Woodpecker connectivity"},
-		{"ship", "[flags]", "build, deploy and route an app"},
+		{"validate", "[repo]", "check the manifest and Woodpecker connectivity"},
+		{"ship", "[repo] [flags]", "build, deploy and route an app"},
 		{"env", "[init|push]", "manage app secrets locally and on the VM"},
 		{"status", "", "show the latest pipeline and its steps"},
 		{"logs", "", "print the latest pipeline URL"},
@@ -58,7 +59,9 @@ func usage() {
 		{"--local", "build & push from this machine, CI deploys only"},
 		{"--public / --private", "force public ACME or Tailscale-only route"},
 		{"--tag TAG", "image tag (default: dev-<git-sha>)"},
-		{"--branch BR", "Woodpecker branch to run (default: current)"},
+		{"--ref REF", "app git ref when shipping from GitHub (default: default branch)"},
+		{"--repo SLUG", "GitHub owner/repo (or pass as the first argument)"},
+		{"--branch BR", "personal-cloud Woodpecker branch (default: current, or main from GitHub)"},
 		{"--allow-dirty", "ship even with uncommitted changes"},
 		{"--wait", "stream pipeline progress until it finishes"},
 	}
@@ -76,7 +79,7 @@ func usage() {
 	ui.Heading("Paths")
 	ui.NewDetails().
 		Add("config", "~/.config/pc/config.yaml").
-		Add("manifest", ".personal-cloud.yaml (walks up from cwd)").
+		Add("manifest", ".personal-cloud.yaml (cwd, or fetched from GitHub)").
 		Add("env secrets", "~/.config/pc/env/<app>.env").
 		Render()
 	fmt.Fprintln(ui.Out)
@@ -104,24 +107,78 @@ func run(cmd string, args []string) error {
 	}
 }
 
-func loadContext() (string, *manifest.Manifest, *config.Config, *git.Info, error) {
+type appCtx struct {
+	repoRoot   string
+	fromGitHub bool
+	source     string
+	m          *manifest.Manifest
+	cfg        *config.Config
+	gi         *git.Info
+}
+
+func loadConfig() (*config.Config, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func loadLocalContext() (*appCtx, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", nil, nil, nil, err
+		return nil, err
 	}
 	repoRoot, m, err := manifest.Find(cwd)
 	if err != nil {
-		return "", nil, nil, nil, err
+		return nil, fmt.Errorf("%w\npass an app or owner/repo to use GitHub instead of a local clone (e.g. pc ship music-serve)", err)
 	}
 	cfg, err := config.Load()
 	if err != nil {
-		return "", nil, nil, nil, err
+		return nil, err
 	}
 	gi, err := git.Discover(repoRoot)
 	if err != nil {
-		return "", nil, nil, nil, err
+		return nil, err
 	}
-	return repoRoot, m, cfg, gi, nil
+	return &appCtx{repoRoot: repoRoot, source: "local " + gi.Remote, m: m, cfg: cfg, gi: gi}, nil
+}
+
+func loadGitHubContext(repo, ref string) (*appCtx, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, err
+	}
+	slug, err := ghapi.NormalizeRepo(repo, cfg.GitHub.Owner)
+	if err != nil {
+		return nil, err
+	}
+	client := ghapi.New(ghapi.AccessToken(cfg), "")
+	res, err := client.Resolve(slug, ref)
+	if err != nil {
+		return nil, err
+	}
+	if err := res.Manifest.Validate(""); err != nil {
+		return nil, err
+	}
+	src := "github.com/" + slug
+	if ref != "" {
+		src += "@" + ref
+	}
+	return &appCtx{fromGitHub: true, source: src, m: res.Manifest, cfg: cfg, gi: res.Git}, nil
+}
+
+func resolveApp(repo, ref string) (*appCtx, error) {
+	if repo != "" {
+		return loadGitHubContext(repo, ref)
+	}
+	if ref != "" {
+		return nil, fmt.Errorf("--ref requires a GitHub repo argument (e.g. pc ship music-serve --ref main)")
+	}
+	return loadLocalContext()
 }
 
 func cmdInit(args []string) error {
@@ -212,51 +269,95 @@ compose:
 	return nil
 }
 
+func parseRepoRef(args []string) (repo, ref string, err error) {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-h" || a == "--help":
+			return "", "", ship.ErrHelp
+		case a == "--ref":
+			if i+1 >= len(args) {
+				return "", "", fmt.Errorf("--ref requires a value")
+			}
+			i++
+			ref = args[i]
+		case strings.HasPrefix(a, "--ref="):
+			ref = strings.TrimPrefix(a, "--ref=")
+		case a == "--repo":
+			if i+1 >= len(args) {
+				return "", "", fmt.Errorf("--repo requires a value")
+			}
+			i++
+			repo = args[i]
+		case strings.HasPrefix(a, "--repo="):
+			repo = strings.TrimPrefix(a, "--repo=")
+		case strings.HasPrefix(a, "-"):
+			return "", "", fmt.Errorf("unknown flag %s", a)
+		default:
+			if repo != "" {
+				return "", "", fmt.Errorf("unexpected argument %q", a)
+			}
+			repo = a
+		}
+	}
+	return repo, ref, nil
+}
+
 func cmdValidate(args []string) error {
+	repo, ref, err := parseRepoRef(args)
+	if err != nil {
+		if ship.IsHelp(err) {
+			fmt.Fprintln(ui.Out, "pc validate [repo] — check the manifest (local or GitHub) and Woodpecker")
+			return nil
+		}
+		return err
+	}
+
 	ui.Logo("validate manifest & connectivity")
 
 	ui.Heading("Checks")
 	load := ui.NewSpinner("Loading manifest, config & git context…").Start()
-	repoRoot, m, cfg, gi, err := loadContext()
+	ac, err := resolveApp(repo, ref)
 	if err != nil {
 		load.Fail("Could not load context")
 		return err
 	}
-	load.Success("Context loaded")
+	load.Success("Context loaded %s", ui.Dim("("+ac.source+")"))
 
 	mv := ui.NewSpinner("Validating manifest…").Start()
-	if err := m.Validate(repoRoot); err != nil {
+	if err := ac.m.Validate(ac.repoRoot); err != nil {
 		mv.Fail("Manifest invalid")
 		return err
 	}
-	mv.Success("Manifest valid %s", ui.Dim("("+m.Name+")"))
+	mv.Success("Manifest valid %s", ui.Dim("("+ac.m.Name+")"))
 
 	cv := ui.NewSpinner("Validating config…").Start()
-	if err := cfg.Validate(); err != nil {
+	if err := ac.cfg.Validate(); err != nil {
 		cv.Fail("Config invalid")
 		return err
 	}
 	cv.Success("Config valid")
 
-	client := woodpecker.New(woodpecker.NormalizeURL(cfg.Woodpecker.URL), cfg.Woodpecker.Token)
+	client := woodpecker.New(woodpecker.NormalizeURL(ac.cfg.Woodpecker.URL), ac.cfg.Woodpecker.Token)
 	pv := ui.NewSpinner("Pinging Woodpecker…").Start()
 	if err := client.Ping(); err != nil {
 		pv.Fail("Woodpecker unreachable")
 		return fmt.Errorf("woodpecker: %w", err)
 	}
-	pv.Success("Woodpecker reachable %s", ui.Dim("("+woodpecker.NormalizeURL(cfg.Woodpecker.URL)+")"))
+	pv.Success("Woodpecker reachable %s", ui.Dim("("+woodpecker.NormalizeURL(ac.cfg.Woodpecker.URL)+")"))
 
-	exposure := strings.ToLower(m.Route.Exposure)
+	exposure := strings.ToLower(ac.m.Route.Exposure)
 	ui.Heading("Details")
 	ui.NewDetails().
-		Add("app", ui.Bold(m.Name)).
-		Add("image", m.Image).
-		Add("repo", gi.Remote).
-		Add("branch", gi.Branch).
-		Add("ref", gi.ShortSHA).
+		Add("app", ui.Bold(ac.m.Name)).
+		Add("image", ac.m.Image).
+		Add("source", ac.source).
+		Add("repo", ac.gi.Remote).
+		Add("branch", ac.gi.Branch).
+		Add("ref", ac.gi.ShortSHA).
 		Add("exposure", exposure).
-		Add("route host", m.ResolvedHost(exposure, cfg.Defaults.TailnetBase)).
-		Add("woodpecker", woodpecker.NormalizeURL(cfg.Woodpecker.URL)).
+		Add("route host", ac.m.ResolvedHost(exposure, ac.cfg.Defaults.TailnetBase)).
+		Add("woodpecker", woodpecker.NormalizeURL(ac.cfg.Woodpecker.URL)).
 		Render()
 
 	ui.Box("Ready to ship", []string{
@@ -267,54 +368,33 @@ func cmdValidate(args []string) error {
 }
 
 func cmdShip(args []string) error {
-	var opt ship.Options
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--local":
-			opt.Local = true
-		case "--public":
-			opt.Public = true
-		case "--private":
-			opt.Private = true
-		case "--allow-dirty":
-			opt.AllowDirty = true
-		case "--wait":
-			opt.Wait = true
-		case "--tag":
-			i++
-			if i >= len(args) {
-				return fmt.Errorf("--tag requires a value")
-			}
-			opt.Tag = args[i]
-		case "--branch":
-			i++
-			if i >= len(args) {
-				return fmt.Errorf("--branch requires a value")
-			}
-			opt.Branch = args[i]
-		case "-h", "--help":
+	opt, err := ship.ParseArgs(args)
+	if err != nil {
+		if ship.IsHelp(err) {
 			usage()
 			return nil
-		default:
-			return fmt.Errorf("unknown flag %s", args[i])
 		}
-	}
-
-	repoRoot, m, cfg, gi, err := loadContext()
-	if err != nil {
-		return err
-	}
-	if err := m.Validate(repoRoot); err != nil {
-		return err
-	}
-	if err := cfg.Validate(); err != nil {
 		return err
 	}
 	if opt.Public && opt.Private {
 		return fmt.Errorf("cannot use --public and --private together")
 	}
 
-	exposure := strings.ToLower(m.Route.Exposure)
+	ac, err := resolveApp(opt.Repo, opt.Ref)
+	if err != nil {
+		return err
+	}
+	if err := ac.m.Validate(ac.repoRoot); err != nil {
+		return err
+	}
+	if err := ac.cfg.Validate(); err != nil {
+		return err
+	}
+	if ac.fromGitHub {
+		opt.Repo = ac.gi.Remote
+	}
+
+	exposure := strings.ToLower(ac.m.Route.Exposure)
 	if opt.Public {
 		exposure = "public"
 	}
@@ -326,32 +406,33 @@ func cmdShip(args []string) error {
 		buildMode = "local (this machine)"
 	}
 
-	ui.Logo("ship " + m.Name)
+	ui.Logo("ship " + ac.m.Name)
 	ui.Heading("Deploy plan")
 	dirty := ui.Green("clean")
-	if gi.Dirty {
+	if ac.gi.Dirty {
 		dirty = ui.Yellow("dirty")
 	}
 	ui.NewDetails().
-		Add("app", ui.Bold(m.Name)).
-		Add("image", m.Image+":"+ui.Bold(resTag(opt, gi))).
-		Add("repo", gi.Remote).
-		Add("branch", branchOf(opt, gi)).
-		Add("ref", gi.ShortSHA+"  "+dirty).
+		Add("app", ui.Bold(ac.m.Name)).
+		Add("image", ac.m.Image+":"+ui.Bold(resTag(opt, ac.gi))).
+		Add("source", ac.source).
+		Add("repo", ac.gi.Remote).
+		Add("branch", branchOf(opt, ac.gi)).
+		Add("ref", ac.gi.ShortSHA+"  "+dirty).
 		Add("exposure", exposure).
-		Add("route host", m.ResolvedHost(exposure, cfg.Defaults.TailnetBase)).
+		Add("route host", ac.m.ResolvedHost(exposure, ac.cfg.Defaults.TailnetBase)).
 		Add("build", buildMode).
-		Add("compose", m.Compose.Template).
+		Add("compose", ac.m.Compose.Template).
 		Render()
 
 	ui.Heading("Shipping")
-	res, err := ship.Run(cfg, repoRoot, m, gi, opt)
+	res, err := ship.Run(ac.cfg, ac.repoRoot, ac.m, ac.gi, opt)
 	if err != nil {
 		return err
 	}
 
 	lines := []string{
-		ui.Dim("image    ") + m.Image + ":" + ui.Bold(res.ImageTag),
+		ui.Dim("image    ") + ac.m.Image + ":" + ui.Bold(res.ImageTag),
 		ui.Dim("pipeline ") + ui.Bold(fmt.Sprintf("#%d", res.Number)),
 		ui.Dim("url      ") + ui.Link(res.PipelineURL),
 	}
@@ -379,11 +460,8 @@ func resTag(opt ship.Options, gi *git.Info) string {
 }
 
 func cmdStatus(args []string) error {
-	_, _, cfg, _, err := loadContext()
+	cfg, err := loadConfig()
 	if err != nil {
-		return err
-	}
-	if err := cfg.Validate(); err != nil {
 		return err
 	}
 
@@ -461,11 +539,8 @@ func cmdStatus(args []string) error {
 }
 
 func cmdLogs(args []string) error {
-	_, _, cfg, _, err := loadContext()
+	cfg, err := loadConfig()
 	if err != nil {
-		return err
-	}
-	if err := cfg.Validate(); err != nil {
 		return err
 	}
 	client := woodpecker.New(woodpecker.NormalizeURL(cfg.Woodpecker.URL), cfg.Woodpecker.Token)
