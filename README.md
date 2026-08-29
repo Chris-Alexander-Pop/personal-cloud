@@ -24,7 +24,7 @@ personal-cloud/
 4. `cd /opt/personal-cloud/platform && docker compose up -d`
 5. Activate **personal-cloud** in Woodpecker (Tailscale → `http://<vm>:8000`).
 6. On your laptop: copy [cli/config.yaml.example](cli/config.yaml.example) → `~/.config/pc/config.yaml`, run `make install-pc`.
-7. In an app repo: add `.personal-cloud.yaml` ([example](.personal-cloud.yaml.example)), then `pc validate` and `pc ship --wait`.
+7. In an app repo: add `.personal-cloud.yaml` ([example](.personal-cloud.yaml.example)), then `pc validate` and `pc ship --wait`. Or from any machine with `pc` config: `pc ship music-serve --wait` (manifest + SHA come from GitHub). Or **Actions → ship** on this repo ([docs/github-actions.md](docs/github-actions.md)).
 
 ## Deploy with `pc` CLI
 
@@ -35,6 +35,8 @@ git clone https://github.com/your-github-username/personal-cloud.git ~/personal-
 make -C ~/personal-cloud install-pc
 pc validate
 pc ship --wait
+# no app clone — pulls .personal-cloud.yaml and the commit from GitHub:
+pc ship music-serve --wait
 ```
 
 See [docs/pc-cli.md](docs/pc-cli.md). Woodpecker runs [`.woodpecker/ship.yaml`](.woodpecker/ship.yaml) — clone, test, build, provision compose + Caddy, deploy.
@@ -53,6 +55,7 @@ IMAGE_TAG=v0.1.0 ./scripts/deploy-app.sh example-app
 | [docs/woodpecker-github.md](docs/woodpecker-github.md) | OAuth app, secrets, repo activation |
 | [docs/adding-an-app.md](docs/adding-an-app.md) | Add another service |
 | [docs/pc-cli.md](docs/pc-cli.md) | `pc` CLI install and ship |
+| [docs/github-actions.md](docs/github-actions.md) | Ship from GitHub (no local clone; same Woodpecker pipeline) |
 | [SECURITY.md](SECURITY.md) | Deployment security notes |
 
 ## Secrets (never commit)

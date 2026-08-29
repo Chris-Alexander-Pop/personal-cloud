@@ -25,6 +25,7 @@ chmod 600 ~/.config/pc/config.yaml
 | `woodpecker.token` | Personal access token from Woodpecker → User settings |
 | `personal_cloud.owner` / `repo` | GitHub repo that runs `.woodpecker/ship.yaml` |
 | `ghcr.token` | GitHub PAT with `write:packages` (for `pc ship --local`) |
+| `github.token` | Optional PAT with `contents:read` so `pc ship music-serve` can read a private app repo |
 | `vm.ssh` | SSH config Host alias for the VM (e.g. `deploy`) |
 | `personal_cloud.local_path` | Local clone of personal-cloud (for `pc env init`) |
 | `defaults.tailnet_base` | Suffix for private routes, e.g. `example.ts.net` |
@@ -55,18 +56,22 @@ test: optional shell command run before build
 ```bash
 pc init              # wizard: create .personal-cloud.yaml
 pc validate          # manifest + Woodpecker connectivity
-pc ship              # remote build on VM, deploy, Caddy route
-pc ship --local      # build/push from this machine, CI deploy-only
+pc validate music-serve   # fetch .personal-cloud.yaml from GitHub (no local clone)
+pc ship              # from an app clone: remote build on VM, deploy, Caddy route
+pc ship music-serve  # no clone — read manifest + SHA from GitHub, same Woodpecker pipeline
+pc ship owner/repo --ref main --wait
+pc ship --local      # build/push from this machine, CI deploys only
 pc ship --private    # Tailscale-only route (tls internal)
 pc ship --public     # force public ACME route
 pc ship --tag v1.0.0 # image tag (default: dev-<git-sha>)
+pc ship --ref REF    # app git ref when shipping from GitHub
 pc ship --wait       # block until pipeline finishes
 pc env init          # copy apps/<name>/.env.example → ~/.config/pc/env/<name>.env
 pc env init --force  # overwrite existing local env file
 pc env push          # scp local env to VM (compose.env_file path)
 pc env push --file PATH  # upload a specific file instead of the default
-pc status            # latest personal-cloud pipeline state
-pc logs              # print Woodpecker pipeline URL
+pc status            # latest personal-cloud pipeline state (config only)
+pc logs              # print Woodpecker pipeline URL (config only)
 ```
 
 ## Output
@@ -87,14 +92,18 @@ when piped or redirected.
 2. Woodpecker: activate `your-github-username/personal-cloud`, add secrets `ghcr_token` and optional `github_clone_token`
 3. Laptop: `~/.config/pc/config.yaml` filled in (`vm.ssh`, `personal_cloud.local_path`, `github.owner`)
 4. On VM once: `cp apps/<app>/.env.example apps/<app>/.env` and edit secrets (or use `pc env init` + `pc env push` from laptop)
-5. From your app repo:
+5. From your app repo **or** with no clone at all:
 
 ```bash
 pc env init          # once — edit ~/.config/pc/env/<app>.env
 pc env push          # before first ship (and after secret changes)
 pc validate
 pc ship --wait
+# phone / Termux, no app clone:
+pc ship music-serve --wait
 ```
+
+GitHub Actions can run the same command after joining Tailscale — see [github-actions.md](github-actions.md). Woodpecker still clones the app from GitHub.com.
 
 6. Public: point DNS at VM, `curl https://api.example.com/health`  
    Private: open `https://my-app.example.ts.net/health` on Tailscale

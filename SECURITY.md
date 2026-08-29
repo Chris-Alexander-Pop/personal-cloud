@@ -16,6 +16,7 @@ This project runs a CI/CD stack with **Docker socket access**. Treat misconfigur
 | Secrets | Keep `platform/woodpecker/.env`, `apps/*/.env`, and `~/.config/pc/config.yaml` out of git |
 | Woodpecker secrets | Store `ghcr_token` and optional `github_clone_token` in the Woodpecker UI, not in the repo |
 | Ship pipeline | Manual trigger only; review pipeline variables before approving runs on shared runners |
+| GitHub Actions ship | Tailscale OAuth `tag:ci` + Woodpecker token as repo secrets; ACL `tag:ci` to VM:8000 only; do not expose Woodpecker publicly |
 
 ## What this repo does not contain
 

@@ -9,6 +9,7 @@ personal_cloud:
   local_path: ~/personal-cloud
 github:
   owner: your-github-username
+  # token:  # optional PAT (contents:read) so `pc ship music-serve` can read a private repo
 defaults:
   tailnet_base: example.ts.net
   registry: ghcr.io

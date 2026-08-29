@@ -20,7 +20,9 @@ type Options struct {
 	Public     bool
 	Private    bool
 	Tag        string
-	Branch     string
+	Branch     string // Woodpecker branch of personal-cloud (not the app)
+	Ref        string // app git ref when shipping from GitHub
+	Repo       string // owner/repo when shipping from GitHub (no local clone)
 	AllowDirty bool
 	Wait       bool
 }
@@ -40,6 +42,10 @@ func Run(cfg *config.Config, repoRoot string, m *manifest.Manifest, gi *git.Info
 		exposure = "private"
 	}
 
+	if opt.Local && opt.Repo != "" {
+		return nil, fmt.Errorf("cannot use --local with a GitHub repo (no local build context)")
+	}
+
 	if gi.Dirty && !opt.AllowDirty {
 		return nil, fmt.Errorf("working tree has uncommitted changes (use --allow-dirty)")
 	}
@@ -50,6 +56,9 @@ func Run(cfg *config.Config, repoRoot string, m *manifest.Manifest, gi *git.Info
 	}
 
 	branch := opt.Branch
+	if branch == "" && opt.Repo != "" {
+		branch = "main"
+	}
 	if branch == "" {
 		branch = gi.Branch
 	}

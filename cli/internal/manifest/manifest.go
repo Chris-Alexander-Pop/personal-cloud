@@ -90,9 +90,21 @@ func Load(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+	m, err := Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return m, nil
+}
+
+// Parse unmarshals a .personal-cloud.yaml document.
+func Parse(data []byte) (*Manifest, error) {
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return nil, fmt.Errorf("manifest is empty")
+	}
 	var m Manifest
 	if err := yaml.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, err
 	}
 	m.applyDefaults()
 	return &m, nil
@@ -144,16 +156,18 @@ func (m *Manifest) Validate(repoRoot string) error {
 		errs = append(errs, fmt.Errorf("compose.template must be one of %s, got %q", strings.Join(ComposeTemplates, ", "), m.Compose.Template))
 	}
 
-	df := filepath.Join(repoRoot, m.Build.Dockerfile)
-	if _, err := os.Stat(df); err != nil {
-		alt := filepath.Join(repoRoot, m.Build.Context, m.Build.Dockerfile)
-		if _, altErr := os.Stat(alt); altErr != nil {
-			errs = append(errs, fmt.Errorf("dockerfile not found: %s", df))
+	if repoRoot != "" {
+		df := filepath.Join(repoRoot, m.Build.Dockerfile)
+		if _, err := os.Stat(df); err != nil {
+			alt := filepath.Join(repoRoot, m.Build.Context, m.Build.Dockerfile)
+			if _, altErr := os.Stat(alt); altErr != nil {
+				errs = append(errs, fmt.Errorf("dockerfile not found: %s", df))
+			}
 		}
-	}
-	ctx := filepath.Join(repoRoot, m.Build.Context)
-	if st, err := os.Stat(ctx); err != nil || !st.IsDir() {
-		errs = append(errs, fmt.Errorf("build.context not found: %s", ctx))
+		ctx := filepath.Join(repoRoot, m.Build.Context)
+		if st, err := os.Stat(ctx); err != nil || !st.IsDir() {
+			errs = append(errs, fmt.Errorf("build.context not found: %s", ctx))
+		}
 	}
 
 	if len(errs) > 0 {

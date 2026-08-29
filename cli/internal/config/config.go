@@ -40,6 +40,7 @@ type VM struct {
 
 type GitHub struct {
 	Owner string `yaml:"owner"`
+	Token string `yaml:"token"` // optional; contents:read for private app repos
 }
 
 type Defaults struct {
@@ -125,6 +126,7 @@ personal_cloud:
   local_path: ~/personal-cloud
 github:
   owner: your-github-username
+  # token:  # optional PAT — private app repos for pc ship owner/repo
 defaults:
   tailnet_base: example.ts.net
   registry: ghcr.io

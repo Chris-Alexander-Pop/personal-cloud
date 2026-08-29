@@ -1,0 +1,42 @@
+# Run from the GitHub mobile/web UI: Actions → ship → Run workflow.
+# No app clone on your phone. Uses the existing Woodpecker ship pipeline.
+name: ship
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: App repo (music-serve or owner/music-serve)
+        required: true
+        type: string
+      ref:
+        description: Git ref to ship (empty = default branch)
+        required: false
+        type: string
+        default: ""
+      exposure:
+        description: Force public or private (empty = use the app manifest)
+        required: false
+        type: string
+        default: ""
+      wait:
+        description: Wait for the Woodpecker pipeline
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  ship:
+    uses: ./.github/workflows/ship-reusable.yml
+    with:
+      repo: ${{ inputs.repo }}
+      ref: ${{ inputs.ref }}
+      exposure: ${{ inputs.exposure }}
+      wait: ${{ inputs.wait }}
+    secrets:
+      WOODPECKER_URL: ${{ secrets.WOODPECKER_URL }}
+      WOODPECKER_TOKEN: ${{ secrets.WOODPECKER_TOKEN }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      TAILNET_BASE: ${{ secrets.TAILNET_BASE }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}

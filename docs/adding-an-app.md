@@ -4,7 +4,7 @@
 
 1. In your app repo: `pc init` (or add `.personal-cloud.yaml` by hand).
 2. On VM: `cp apps/<name>/.env.example apps/<name>/.env` and set secrets.
-3. `pc validate` then `pc ship`.
+3. `pc validate` then `pc ship` (from a clone), or `pc ship <app>` to read the manifest from GitHub.
 
 Only **personal-cloud** must be activated in Woodpecker. App repos do not need Woodpecker webhooks.
 
@@ -34,8 +34,8 @@ Host-network templates bind the app on the VM. Caddy proxies to `host.docker.int
 
 ## What `pc ship` does
 
-1. Triggers manual pipeline [`.woodpecker/ship.yaml`](../.woodpecker/ship.yaml)
-2. Clones your app at the current git SHA
+1. Triggers manual pipeline [`.woodpecker/ship.yaml`](../.woodpecker/ship.yaml) — same file whether you run `pc` from a clone, `pc ship owner/repo`, or GitHub Actions
+2. Clones your app from GitHub.com at the chosen git SHA
 3. Optional `test` script
 4. Builds and pushes image (unless `--local`)
 5. Renders `apps/<name>/compose.yaml` and `platform/caddy/sites/<name>.caddy`

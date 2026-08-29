@@ -67,7 +67,7 @@ Bootstrap clones the repo to `/opt/personal-cloud`. The ship pipeline renders co
 
 ## 6. Verify a deploy
 
-From your app repo:
+From your app repo, or without a clone (`pc ship music-serve --wait`), or via **Actions → ship** ([github-actions.md](github-actions.md)):
 
 ```bash
 pc validate
