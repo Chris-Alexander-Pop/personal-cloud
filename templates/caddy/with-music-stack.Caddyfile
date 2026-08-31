@@ -2,12 +2,19 @@
 # Host ports 8040-8042 (Namida / ingest) and 8043-8045 (acquire UIs).
 # Keep this off the public internet. Bind via MUSIC_BIND (Tailscale).
 # :8043 / :8045 502 until COMPOSE_PROFILES=acquire. :8044 until profile usenet.
+# :8043 reaches slskd through the gluetun sidecar (compose alias).
 
 :8040 {
 	reverse_proxy navidrome:4533
 }
 
 :8041 {
+	# Namida lists with OPTIONS + PROPFIND (including Depth: infinity).
+	# dufs returns 400 for infinity — ingest answers discovery, dufs streams GET/PUT.
+	@dav method OPTIONS PROPFIND PROPPATCH LOCK UNLOCK
+	handle @dav {
+		reverse_proxy ingest:8080
+	}
 	reverse_proxy dufs:5000
 }
 
