@@ -25,6 +25,9 @@ fi
 mkdir -p "${APP_DIR}" "${CADDY_SITES}"
 
 export APP_NAME IMAGE IMAGE_TAG SERVICE_CONTAINER SERVICE_PORT
+# Pipeline IMAGE / IMAGE_TAG must win; app .env often has IMAGE_TAG=latest from a prior ship.
+SHIP_IMAGE="$IMAGE"
+SHIP_IMAGE_TAG="$IMAGE_TAG"
 
 # POSTGRES_PASSWORD for with-postgres template (from env file if present)
 ENV_FILE="${COMPOSE_ENV_FILE:-${APP_DIR}/.env}"
@@ -34,6 +37,9 @@ if [[ -f "${ENV_FILE}" ]]; then
   source "${ENV_FILE}"
   set +a
 fi
+IMAGE="$SHIP_IMAGE"
+IMAGE_TAG="$SHIP_IMAGE_TAG"
+export IMAGE IMAGE_TAG
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change-me}"
 export MEDIA_HOST_PATH="${MEDIA_HOST_PATH:-/opt/personal-cloud/data/orthodox-talks}"
 export DATA_HOST_PATH="${DATA_HOST_PATH:-/opt/personal-cloud/data/${APP_NAME}}"
