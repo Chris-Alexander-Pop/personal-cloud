@@ -22,9 +22,13 @@ For a **private** app repo, set `github.token` (contents:read) in config, or `GI
 
 ## From GitHub Actions
 
-On **personal-cloud**: **Actions → ship → Run workflow**. Enter `music-serve` (and an optional ref). That is the phone-friendly path.
+On **personal-cloud**: **Actions → ship → Run workflow**. Pick the app from the dropdown (and an optional ref). That is the phone-friendly path.
 
-The workflow is [`.github/workflows/ship.yml`](../.github/workflows/ship.yml). It builds `pc`, joins Tailscale, and runs `pc ship <repo>`.
+GitHub cannot fill `workflow_dispatch` choice lists at click time. [`.github/workflows/sync-ship-apps.yml`](../.github/workflows/sync-ship-apps.yml) scans your GitHub repos for a root `.personal-cloud.yaml` and commits the dropdown. It runs daily, after a successful **ship**, and on demand (**Actions → sync-ship-apps**). `GH_TOKEN` is required to see **private** app repos in that list.
+
+First-time apps: choose **other** and type `music-serve` (or `owner/music-serve`). After that ship succeeds, sync adds it to the dropdown.
+
+The workflow is [`.github/workflows/ship.yml`](../.github/workflows/ship.yml). It builds `pc`, joins Tailscale, and runs `pc ship <repo>`. The option values are **GitHub repo names** (for example `ro-prayers-app`), not the `name:` field in the manifest.
 
 ### Secrets on the personal-cloud repo
 
@@ -34,7 +38,7 @@ The workflow is [`.github/workflows/ship.yml`](../.github/workflows/ship.yml). I
 | `WOODPECKER_TOKEN` | Woodpecker personal token |
 | `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET` | Tailscale OAuth client ([Trust credentials](https://tailscale.com/kb/1215/oauth-clients)) tagged `tag:ci` |
 | `TAILNET_BASE` | e.g. `tail123.ts.net` — private route suffix |
-| `GH_TOKEN` | Optional PAT with `contents:read` on private app repos |
+| `GH_TOKEN` | PAT with `repo` (or at least `contents:read` on private apps). Needed to ship private repos **and** to list them in the ship dropdown |
 
 ACL: allow `tag:ci` to the VM on TCP `8000` only. Use an ephemeral CI node.
 

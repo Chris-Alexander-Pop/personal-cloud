@@ -1,0 +1,45 @@
+# Keep the ship workflow_dispatch dropdown in sync with GitHub repos that
+# have a root .personal-cloud.yaml. GitHub cannot fill choice inputs at
+# click time — this job rewrites the YAML and pushes it.
+name: sync-ship-apps
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: [ship]
+    types: [completed]
+
+concurrency:
+  group: sync-ship-apps
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refresh ship dropdown
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: ./scripts/sync-ship-apps.sh
+
+      - name: Commit if the app list changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/ship.yml
+          if git diff --cached --quiet; then
+            echo "ship dropdown unchanged"
+            exit 0
+          fi
+          git commit -m "Refresh ship workflow app dropdown from GitHub manifests."
+          git push

@@ -10,7 +10,7 @@ Only **personal-cloud** must be activated in Woodpecker. App repos do not need W
 
 ## Checklist
 
-1. **`.personal-cloud.yaml`** at repo root — see [pc-cli.md](pc-cli.md).
+1. **`.personal-cloud.yaml`** at repo root — see [pc-cli.md](pc-cli.md). After the next [sync-ship-apps](github-actions.md) run it appears in **Actions → ship**.
 2. **Dockerfile** at `build.dockerfile` path.
 3. **VM env file** — `/opt/personal-cloud/apps/<name>/.env` from `.env.example`.
 4. **Compose template** — see table below.
