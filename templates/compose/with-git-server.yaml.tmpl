@@ -17,7 +17,7 @@ services:
       - ${DATA_HOST_PATH}:/data
     ports:
       - "${GIT_BIND:-127.0.0.1}:${GIT_HTTP_PORT:-8050}:${SERVICE_PORT}"
-      - "${GIT_BIND:-127.0.0.1}:${GIT_SSH_PORT:-2222}:2222"
+      - "${GIT_BIND:-127.0.0.1}:${GIT_SSH_PORT:-2222}:22"
     healthcheck:
       test: ["CMD-SHELL", "timeout 1 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/${SERVICE_PORT}' || exit 1"]
       interval: 10s
