@@ -64,6 +64,26 @@ compose:
 	if err := m.Validate(""); err != nil {
 		t.Fatal(err)
 	}
+	gitServer, err := Parse([]byte(`name: private-git
+image: ghcr.io/example/private-git
+build:
+  context: .
+  dockerfile: Dockerfile
+service:
+  container: private-git
+  port: 3000
+  health_path: /api/healthz
+route:
+  exposure: private
+compose:
+  template: with-git-server
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gitServer.Validate(""); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := Parse([]byte("   \n")); err == nil {
 		t.Fatal("expected empty manifest error")
 	}

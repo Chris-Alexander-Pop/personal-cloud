@@ -62,7 +62,28 @@ esac
 SITE_FILE="${CADDY_SITES}/${APP_NAME}.caddy"
 echo "Rendering Caddy site -> ${SITE_FILE}"
 
+TLS_LINE=""
 if [[ "${EXPOSURE}" == "private" ]]; then
+  TLS_LINE=$'\n\ttls internal'
+fi
+
+if [[ "${COMPOSE_TEMPLATE}" == "with-git-server" ]]; then
+  cat > "${SITE_FILE}" <<EOF
+# ${APP_NAME} — git smart HTTP (large pushes, no idle timeout)
+${ROUTE_HOST} {${TLS_LINE}
+	request_body {
+		max_size 0
+	}
+	reverse_proxy ${PROXY_UPSTREAM} {
+		flush_interval -1
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+}
+EOF
+elif [[ "${EXPOSURE}" == "private" ]]; then
   cat > "${SITE_FILE}" <<EOF
 # ${APP_NAME} — Tailscale / private (tls internal)
 ${ROUTE_HOST} {

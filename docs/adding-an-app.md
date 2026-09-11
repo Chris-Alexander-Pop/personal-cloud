@@ -29,6 +29,7 @@ Only **personal-cloud** must be activated in Woodpecker. App repos do not need W
 | `with-data-volume-host` | Host network **and** `/data` (e.g. IoT controllers) |
 | `with-minio` | App + MinIO (S3) on an internal network; MinIO ports published on the VM |
 | `with-music-stack` | Ingest + Navidrome + dufs + phone-edge Caddy (8040–8042). Profile `acquire` adds Lidarr/slskd/Soularr (UIs 8043/8045) |
+| `with-git-server` | Forgejo: `/data` volume, HTTP+SSH published on `GIT_BIND` (8050/2222), Caddy for git smart HTTP |
 
 Host-network templates bind the app on the VM. Caddy proxies to `host.docker.internal:<port>` (platform compose adds that host mapping).
 

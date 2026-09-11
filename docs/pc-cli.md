@@ -47,7 +47,7 @@ route:
   exposure: public    # or private
   host: api.example.com   # required if public
 compose:
-  template: default   # default | with-postgres | with-data-volume | with-data-volume-host | …
+  template: default   # default | with-postgres | with-data-volume | with-data-volume-host | with-git-server | …
 test: optional shell command run before build
 ```
 
