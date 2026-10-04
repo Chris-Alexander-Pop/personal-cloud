@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Put Tailscale-published containers back on their bridge.
+
+If Docker applies a host port bind before that address is on an interface,
+libnetwork rolls the endpoint back. HostConfig still has the bind. The
+process stays up. NetworkSettings.Networks and Ports are empty, and
+`docker restart` does not attach the network again. `docker network connect`
+does.
+
+Run after tailscaled is up, and again after dockerd has started containers.
+Exit 0 always so an ExecStartPost cannot fail tailscaled.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+
+
+def log(msg: str) -> None:
+    print(msg, flush=True)
+    subprocess.run(
+        ["logger", "-t", "docker-tailscale-reattach", "--", msg],
+        check=False,
+    )
+
+
+def run(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+def tailscale_ip() -> str | None:
+    result = run(["ip", "-4", "-o", "addr", "show", "dev", "tailscale0"])
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if "inet" not in parts:
+            continue
+        addr = parts[parts.index("inet") + 1].split("/")[0]
+        if is_cgnat(addr):
+            return addr
+    return None
+
+
+def is_cgnat(addr: str) -> bool:
+    try:
+        a, b, _, _ = (int(x) for x in addr.split("."))
+    except ValueError:
+        return False
+    return a == 100 and 64 <= b <= 127
+
+
+def listening() -> set[str]:
+    result = run(["ss", "-lntH"])
+    found: set[str] = set()
+    for line in result.stdout.splitlines():
+        cols = line.split()
+        if len(cols) >= 4:
+            found.add(cols[3])
+    return found
+
+
+def age_seconds(started_at: str) -> float:
+    text = started_at.rstrip("Z")
+    if "." in text:
+        head, frac = text.split(".", 1)
+        text = head + "." + frac[:6]
+        dt = datetime.strptime(text, "%Y-%m-%dT%H:%M:%S.%f")
+    else:
+        dt = datetime.strptime(text, "%Y-%m-%dT%H:%M:%S")
+    return time.time() - dt.replace(tzinfo=timezone.utc).timestamp()
+
+
+def wanted_ports(container: dict, ts_ip: str) -> list[str]:
+    ports: list[str] = []
+    bindings = container["HostConfig"].get("PortBindings") or {}
+    for spec in bindings.values():
+        if not spec:
+            continue
+        for binding in spec:
+            host_ip = binding.get("HostIp") or ""
+            host_port = binding.get("HostPort") or ""
+            if host_ip == ts_ip and host_port:
+                ports.append(host_port)
+    return ports
+
+
+def connectable(mode: str) -> bool:
+    if not mode or mode in {"host", "none", "default", "bridge"}:
+        return False
+    if mode.startswith("container:"):
+        return False
+    return True
+
+
+def heal(dry_run: bool) -> bool:
+    """Return True when every Tailscale publish is listening."""
+    if run(["docker", "info"]).returncode != 0:
+        log("docker not ready")
+        return False
+    ts_ip = tailscale_ip()
+    if not ts_ip:
+        log("tailscale0 has no 100.x address")
+        return False
+
+    ids = [line for line in run(["docker", "ps", "-q"]).stdout.splitlines() if line]
+    if not ids:
+        return True
+    raw = run(["docker", "inspect", *ids])
+    if raw.returncode != 0:
+        log(raw.stderr.strip() or "docker inspect failed")
+        return False
+    containers = json.loads(raw.stdout)
+    open_ports = listening()
+    healthy = True
+
+    for container in containers:
+        name = container["Name"].lstrip("/")
+        ports = wanted_ports(container, ts_ip)
+        if not ports:
+            continue
+        nets = container["NetworkSettings"].get("Networks") or {}
+        mode = container["HostConfig"].get("NetworkMode") or ""
+        missing = [p for p in ports if f"{ts_ip}:{p}" not in open_ports]
+        if nets and not missing:
+            continue
+        healthy = False
+        if not nets:
+            if not connectable(mode):
+                log(f"{name}: off the network, mode {mode!r} left alone")
+                continue
+            log(f"{name}: connect {mode}")
+            if dry_run:
+                continue
+            result = run(["docker", "network", "connect", mode, name])
+            if result.returncode != 0:
+                log(f"{name}: connect failed: {result.stderr.strip()}")
+            else:
+                time.sleep(1)
+                open_ports = listening()
+                missing = [p for p in ports if f"{ts_ip}:{p}" not in open_ports]
+                if not missing:
+                    log(f"{name}: ports back")
+                    continue
+        if not missing:
+            continue
+        try:
+            age = age_seconds(container["State"]["StartedAt"])
+        except (KeyError, ValueError):
+            age = 9999
+        if age < 20 and nets:
+            log(f"{name}: ports {missing} not up yet ({age:.0f}s old)")
+            continue
+        log(f"{name}: restart, missing {missing}")
+        if dry_run:
+            continue
+        result = run(["docker", "restart", name])
+        if result.returncode != 0:
+            log(f"{name}: restart failed: {result.stderr.strip()}")
+        else:
+            log(f"{name}: restarted")
+    return healthy
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--settle",
+        type=int,
+        default=0,
+        help="retry for this many seconds while containers are still starting",
+    )
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    try:
+        if args.dry_run:
+            heal(True)
+            return 0
+        deadline = time.time() + max(args.settle, 0)
+        while True:
+            if heal(False):
+                return 0
+            if time.time() >= deadline:
+                return 0
+            time.sleep(5)
+    except Exception as exc:
+        log(f"error: {exc}")
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,11 @@
+[Unit]
+Description=Reattach Docker containers published on the Tailscale address
+After=docker.service tailscale-online.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/docker-tailscale-reattach --settle 60
+
+[Install]
+WantedBy=multi-user.target

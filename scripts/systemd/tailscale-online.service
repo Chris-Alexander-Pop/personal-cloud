@@ -1,0 +1,13 @@
+[Unit]
+Description=Wait until Tailscale has an address before Docker publishes ports
+After=tailscaled.service network-online.target
+Wants=tailscaled.service
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/docker-tailscale-wait-online
+
+[Install]
+WantedBy=multi-user.target

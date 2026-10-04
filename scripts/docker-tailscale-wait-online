@@ -1,0 +1,18 @@
+#!/bin/bash
+# Block until tailscale0 has a CGNAT address, then return success either way.
+# Docker waits on this so it does not publish ports onto an address that
+# does not exist yet. A missing address makes libnetwork roll the container
+# off its bridge and leave the process up with no ports.
+# Timeout still exits 0. A dead tailscaled must not pin every container.
+
+set -u
+
+for _ in $(seq 1 90); do
+  if ip -4 -o addr show dev tailscale0 2>/dev/null | grep -q 'inet 100\.'; then
+    exit 0
+  fi
+  sleep 1
+done
+
+logger -t tailscale-online -- "no 100.x address after 90s; letting Docker start"
+exit 0

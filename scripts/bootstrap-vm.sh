@@ -114,6 +114,11 @@ Suggested firewall:
 
 EOF
 
+if [[ -x "$INSTALL_ROOT/scripts/install-docker-tailscale-order.sh" ]]; then
+  log "Ordering Docker after the Tailscale address"
+  bash "$INSTALL_ROOT/scripts/install-docker-tailscale-order.sh"
+fi
+
 log "Next steps"
 cat <<EOF
 
