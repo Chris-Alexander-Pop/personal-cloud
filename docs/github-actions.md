@@ -24,7 +24,7 @@ For a **private** app repo, set `github.token` (contents:read) in config, or `GI
 
 On **personal-cloud**: **Actions → ship → Run workflow**. Pick the app from the dropdown (and an optional ref). That is the phone-friendly path.
 
-GitHub cannot fill `workflow_dispatch` choice lists at click time. [`.github/workflows/sync-ship-apps.yml`](../.github/workflows/sync-ship-apps.yml) scans your GitHub repos for a root `.personal-cloud.yaml` and commits the dropdown. It runs daily, after a successful **ship**, and on demand (**Actions → sync-ship-apps**). `GH_TOKEN` is required to see **private** app repos in that list.
+GitHub cannot fill `workflow_dispatch` choice lists at click time. [`.github/workflows/sync-ship-apps.yml`](../.github/workflows/sync-ship-apps.yml) scans your GitHub repos for a root `.personal-cloud.yaml` and commits the dropdown. It runs daily, after a successful **ship**, and on demand (**Actions → sync-ship-apps**). The job checks out and pushes with the `GH_TOKEN` secret. The built-in `GITHUB_TOKEN` cannot see private app repos, and GitHub rejects its pushes to `.github/workflows/ship.yml`.
 
 First-time apps: choose **other** and type `music-serve` (or `owner/music-serve`). After that ship succeeds, sync adds it to the dropdown.
 
@@ -38,7 +38,7 @@ The workflow is [`.github/workflows/ship.yml`](../.github/workflows/ship.yml). I
 | `WOODPECKER_TOKEN` | Woodpecker personal token |
 | `TS_OAUTH_CLIENT_ID` / `TS_OAUTH_SECRET` | Tailscale OAuth client ([Trust credentials](https://tailscale.com/kb/1215/oauth-clients)) tagged `tag:ci` |
 | `TAILNET_BASE` | e.g. `tail123.ts.net` — private route suffix |
-| `GH_TOKEN` | PAT with `repo` (or at least `contents:read` on private apps). Needed to ship private repos **and** to list them in the ship dropdown |
+| `GH_TOKEN` | User token with `repo` and `workflow`. `repo` lists and ships private app repos. `workflow` lets sync-ship-apps push `.github/workflows/ship.yml`. A fine-grained token needs Contents and Workflows write on this repo, and Contents read on the app repos |
 
 ACL: allow `tag:ci` to the VM on TCP `8000` only. Use an ephemeral CI node.
 

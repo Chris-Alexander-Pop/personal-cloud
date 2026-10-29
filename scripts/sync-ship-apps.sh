@@ -77,6 +77,15 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
+# GITHUB_TOKEN is a GitHub App token. It only sees this repo and public
+# repos, so a sync under it would drop every private app. GitHub also
+# rejects that token's pushes to .github/workflows. Require a user token.
+if ! gh api user --jq .login >/dev/null 2>&1; then
+  echo "GH_TOKEN must be a user PAT with the repo and workflow scopes." >&2
+  echo "The Actions GITHUB_TOKEN cannot list private repos or push workflow files." >&2
+  exit 1
+fi
+
 discover() {
   local after="" has_next="true" resp names
   names="$(mktemp)"
