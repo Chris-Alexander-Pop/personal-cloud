@@ -16,13 +16,11 @@ on:
         type: choice
         options:
           # BEGIN SHIP_APPS
-          - Animal
           - devote
           - gvl
-          - macrofactor-mcp
           - music-serve
+          - private-git
           - ro-prayers-app
-          - trickers-third-eye
           # END SHIP_APPS
           - other
       other_repo:
