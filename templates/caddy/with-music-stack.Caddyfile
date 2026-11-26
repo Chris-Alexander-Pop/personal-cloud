@@ -9,10 +9,11 @@
 }
 
 :8041 {
-	# Namida lists with OPTIONS + PROPFIND (including Depth: infinity).
-	# dufs returns 400 for infinity — ingest answers discovery, dufs streams GET/PUT.
-	@dav method OPTIONS PROPFIND PROPPATCH LOCK UNLOCK
-	handle @dav {
+	# Namida pings with OPTIONS (dufs: 200 + DAV) and lists with PROPFIND.
+	# dufs returns 400 for Depth: infinity, so only PROPFIND goes to ingest.
+	# Sending OPTIONS to ingest too floods the single worker (one ping per .lrc).
+	@propfind method PROPFIND
+	handle @propfind {
 		reverse_proxy ingest:8080
 	}
 	reverse_proxy dufs:5000
