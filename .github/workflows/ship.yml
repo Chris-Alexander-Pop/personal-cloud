@@ -18,9 +18,9 @@ on:
           # BEGIN SHIP_APPS
           - devote
           - gvl
+          - lychnikon
           - music-serve
           - private-git
-          - ro-prayers-app
           # END SHIP_APPS
           - other
       other_repo:
